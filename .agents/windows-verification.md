@@ -2031,6 +2031,16 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 3. Report only. Download the exe through Edge from the release page and record SmartScreen's first-run dialog.
 4. Record, as expected and not as a defect, that a self-updated exe carries no Mark-of-the-Web, so SmartScreen does not prompt on that path.
 
+### C142: the win-x64 exe carries the Lantern icon and the GM-Scriptorium version strings, and still starts
+
+`scripts/winres.js` sets the icon and the version strings on the pkg base binary before pkg appends its payload. **Mark this OPEN: the build machine checks the resources by reading them back and runs only a Linux proxy start-up test, which proves nothing about the Windows exe. How Windows draws the icon, and whether the edited exe starts, comes only from VM 201.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG`, never the real config.
+
+1. Explorer shows the Lantern icon on the exe at 100% and at 150% display scale, in a large-icon view and a details view. The small sizes (16, 20, 24) are drawn from the icon's own entries and look clean.
+2. The taskbar shows the Lantern icon for the running exe, at 100% and at 150%.
+3. Properties > Details shows: File description `GM-Scriptorium`, File version and Product version equal to the release version, Product name `GM-Scriptorium`, Copyright `DrNoisys Softworks. MIT licence.`, Original filename `gm-scriptorium-win-x64.exe`. Nothing mentions Node.js anywhere on the tab.
+4. C1 passes on this exe: `--version` prints the target version and exits 0, and `--help` and `--notices` run.
+5. The same exe, copied under another name, still starts (the original filename string must not matter).
+
 ### C153: a held-open config.toml in the panel shows a plain message and loses nothing, in the real win-x64 exe
 
 Issue #67, `docs/decisions/0050-several-campaigns.md`. **Mark this OPEN: Linux tests prove the logic only; the raw EPERM comes from how NTFS refuses a rename over a file held open.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 4; the two must match.
