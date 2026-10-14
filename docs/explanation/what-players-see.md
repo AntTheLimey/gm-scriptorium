@@ -19,7 +19,7 @@ Each note in your vault gets one answer, publish or not, from the first rule bel
 
 Without `_meta/publish-manifest.md` there is no allowlist, so `check` reports an error (`leak/l1-no-manifest`) until you add one.
 
-Separately, the folders named in `excludeDirs` in `vault.config.json` and in `publish.exclude_dirs` are never read. The two lists are joined.
+Separately, the folders named in `excludeDirs` in `vault.config.json` and in `publish.exclude_dirs` are never read. The two lists are joined. The settings are listed in [the vault's publish settings](../reference/vault-config.md).
 
 ## What is removed from a published page
 
