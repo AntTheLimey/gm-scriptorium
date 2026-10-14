@@ -28,6 +28,8 @@ Steps for a job you already have in mind.
 - [Move to another computer](how-to/move-to-another-computer.md): copying your settings, fixing the paths, and sharing one vault between two computers.
 - [Use the command line and scripts](how-to/use-the-command-line-and-scripts.md): giving a script its own settings, reading results as data, acting on exit codes, and setting a password without a prompt.
 - [Troubleshooting](how-to/troubleshooting.md): what the common messages mean and what to do, and the problems that come with no message.
+- [Keep GM-only notes off the player site](how-to/hide-gm-content.md): hiding a page, part of a page, a field, a relationship or a name, and checking the result.
+- [Add a Game master link to the player site](how-to/add-a-game-master-link.md): a link in the site footer back to your own admin panel, and why its address is public.
 
 ## Reference
 

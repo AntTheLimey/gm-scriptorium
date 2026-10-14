@@ -61,6 +61,8 @@ disagree.
 | [Move to another computer](how-to/move-to-another-computer.md) | How-to guides | Linux (the Windows steps have not been run) |
 | [Use the command line and scripts](how-to/use-the-command-line-and-scripts.md) | How-to guides | Linux (the PowerShell example has not been run) |
 | [Troubleshooting](how-to/troubleshooting.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Keep GM-only notes off the player site](how-to/hide-gm-content.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Add a Game master link to the player site](how-to/add-a-game-master-link.md) | How-to guides | Linux (the Windows steps have not been run) |
 | [Image slots](image-slots.md) | Reference | No steps |
 | [The settings file (config.toml)](reference/config-toml.md) | Reference | No steps |
 | [Environment variables](reference/environment-variables.md) | Reference | No steps |
