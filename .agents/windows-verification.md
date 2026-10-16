@@ -2255,6 +2255,24 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 4. Append the planted name (`PLANTED_NAME`) in a paragraph to `out\index.html`. Run `check smoke --json`. It exits 2, the `counts` equal `EXPECTED.planted`, and there is exactly one `leak/l4-output-name` finding, naming `index.html`.
 5. Re-hash the real config.
 
+### C190 to C205: rules that hold for every desktop-app criterion
+
+Rules that hold for every criterion:
+- Each is **OPEN until run on the VM** against the 0.5.0 release candidate.
+- Isolate config: run `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, then sign out and in, so the tray inherits it. Never the real config, never `N:`.
+- Start with Windows stays off unless the criterion tests it.
+- Record `certutil -hashfile <scratch config> SHA256` before and after wherever the criterion says the config is unchanged.
+
+### C190: starting from the Start menu, the desktop shortcut and Finish gives no console window, a tray icon and a signed-in browser
+ADR 0057 sections 1 to 3.
+1. Finish with "Start GM-Scriptorium now" ticked.
+   - No console window appears at any point.
+   - In Process Explorer, `gm-scriptorium-tray.exe` is the parent of `gm-scriptorium.exe`, and `gm-scriptorium.exe` has no `conhost.exe` child.
+   - The browser opens on `http://127.0.0.1:7400`, signed in.
+   - The N01 toast shows once.
+2. Quit from the tray. Start again from the Start menu, then from the desktop shortcut. The browser opens signed in each time, and N01 does not show again.
+3. With no campaign registered, the browser opens on setup.
+
 ### C191: every tray menu item works
 
 [ADR 0057](../docs/decisions/0057-windows-desktop-app.md) sections 1, 5 and 11; [ADR 0028](../docs/decisions/0028-installer-and-first-run.md) section 7.
@@ -2275,6 +2293,12 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 9. Open log folder opens `<config folder>\panel\logs`.
 10. Quit.
 
+### C192: a second launch reuses the running instance
+ADR 0057 section 4.
+1. With the app running, launch from the Start menu, the shortcut, Finish (re-run Setup) and the terminal. Each opens a new tab only.
+2. `netstat -ano` shows listeners on 7400 and 7401 for one `gm-scriptorium.exe` PID only.
+3. In an error state (C196 step 1), a launch shows the error toast and opens the log folder instead of starting a second copy.
+
 ### C193: closing the browser keeps it running, Quit stops and tidies, and tabs show the stopped page
 
 [ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 5; [ADR 0028](../docs/decisions/0028-installer-and-first-run.md) section 6.
@@ -2290,6 +2314,14 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
    - open tabs show "GM-Scriptorium has stopped" with "Start it again from the GM-Scriptorium icon in the system tray, or from the Start menu."
 3. During a preview build, Quit and Stop panel ask first, and Cancel is the default.
 
+### C194: sign-out, restart and shutdown stop it cleanly
+ADR 0057 section 6.
+1. For each of sign-out, restart and shutdown, with the app running:
+   - no "this app is preventing shutdown" screen appears;
+   - after sign-in, the previous `desktop.log` ends with `quit` reason endsession, or shows only the accepted leftovers;
+   - the scratch config hash is unchanged.
+2. Ports 7400 and 7401 are free before the next start.
+
 ### C196: errors with no console, the log, and changing ports
 
 [ADR 0057](../docs/decisions/0057-windows-desktop-app.md) sections 8 and 9. **Mark this OPEN: Linux tests prove the log scrub, the card and its write with a stand-in host (`test/admin-desktop-http.test.js`, `test/desktop-card-ui.dom.test.js`); the toasts, the port dialog, a real restart and the folder's access list can only be checked on Windows.** Isolate config as in C191: a scratch `SCRIPTORIUM_CONFIG`, never the real config, never `N:`.
@@ -2301,20 +2333,6 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 5. From the Overview "This PC's addresses" card, choose Change, enter 7400 and 7401, and Save and restart. The panel restarts and opens a new tab there, signed in. The old tab, reloaded, does not get in. Record `certutil -hashfile <scratch config> SHA256` before and after: the file changes, and only the `[desktop]` table differs.
 6. With remote access on (tailscale or proxy mode saved, started from the tray), the card is read-only: no Change button, and it names the remote ports and says "Remote access uses its own ports. Change them with gm-scriptorium remote set."
 7. In local mode, `icacls <panel>\logs` (the `panel` folder beside the scratch config) lists only your account, SYSTEM and Administrators. The folder is made by the host (`panel\logs\desktop.log`), and the inheritable list from ADR 0056 covers it.
-
-### C205: remote mode under the background app
-
-ADR 0057 sections 5 and 8; ADR 0056.
-
-**Mark this OPEN: Linux tests drive the host with a stand-in tray and a stand-in opener; only a real tray, a real sign-in and a real access list can be checked here.** Run it on the VM, or with a scratch config only: `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, then sign out and in. Never the real config, never `N:`. Record `certutil -hashfile <scratch config> SHA256` where a step says the config is unchanged. RV1 steps 5 to 7 are added by the owner ruling on remote access at sign-in (ADR 0057 section 7).
-
-1. With tailscale or proxy mode saved, `icacls <panel>` shows only the account, SYSTEM and Administrators.
-2. T03 shows the mode and the address, plus the warning line under Start with Windows.
-3. The Quit confirm appears. Quit and Stop panel each close the remote listener (check `netstat`).
-4. The desktop ports are ignored, and the remote ports are used.
-5. RV1, not yet confirmed: with Start with Windows on and a remote mode saved but `remote_at_signin` absent, sign out and in. The panel listens on `127.0.0.1` only (`netstat` shows no other address on the desktop ports and nothing on the remote ports), no browser tab opens, and the tray header says "Remote access is off at sign-in. Start it from the tray to turn it on." Then use the tray's Start panel after Stop panel: the saved remote mode is used and a tab opens.
-6. RV1, confirmed: run `gm-scriptorium remote set --mode proxy ...` in a terminal, answer `y` to "Also start remote access when you sign in to Windows?", and sign out and in. The remote listener is up with no tab opened. Run `gm-scriptorium remote off`: `remote_at_signin` is gone from the `[desktop]` table, and the next sign-in is local only.
-7. Run `remote set` with piped input (no terminal): it says remote access will not start at sign-in and writes no confirmation. Run it again to a different remote mode with the flag set and answer `n`: the flag is removed.
 
 ### C197: the command line alongside the background app
 
@@ -2334,6 +2352,25 @@ ADR 0057 sections 5 and 8; ADR 0056.
 8. `serve --admin` in a terminal runs a separate panel on an OS-picked port while the tray app runs.
 9. `check`, `build`, `config list`, `remote show` and `update --check` all work.
 10. If it can be provoked (suspend `gm-scriptorium-tray.exe` in Process Explorer the moment the command starts), a hand-off that gets no answer in 15 seconds prints "GM-Scriptorium is still starting. Look for its icon in the system tray." and returns 1, and no second panel opens in the terminal.
+
+### C203: the tray icon looks right
+ADR 0057 section 9.
+1. On light and dark taskbars, at 100% and 150% scaling, in the overflow and pinned, each badge state is readable. Tooltips read as T01 and T08. Menus are not clipped at 150%.
+2. `taskkill /f /im explorer.exe`, then start Explorer: the icon returns.
+
+### C205: remote mode under the background app
+
+ADR 0057 sections 5 and 8; ADR 0056.
+
+**Mark this OPEN: Linux tests drive the host with a stand-in tray and a stand-in opener; only a real tray, a real sign-in and a real access list can be checked here.** Run it on the VM, or with a scratch config only: `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, then sign out and in. Never the real config, never `N:`. Record `certutil -hashfile <scratch config> SHA256` where a step says the config is unchanged. RV1 steps 5 to 7 are added by the owner ruling on remote access at sign-in (ADR 0057 section 7).
+
+1. With tailscale or proxy mode saved, `icacls <panel>` shows only the account, SYSTEM and Administrators.
+2. T03 shows the mode and the address, plus the warning line under Start with Windows.
+3. The Quit confirm appears. Quit and Stop panel each close the remote listener (check `netstat`).
+4. The desktop ports are ignored, and the remote ports are used.
+5. RV1, not yet confirmed: with Start with Windows on and a remote mode saved but `remote_at_signin` absent, sign out and in. The panel listens on `127.0.0.1` only (`netstat` shows no other address on the desktop ports and nothing on the remote ports), no browser tab opens, and the tray header says "Remote access is off at sign-in. Start it from the tray to turn it on." Then use the tray's Start panel after Stop panel: the saved remote mode is used and a tab opens.
+6. RV1, confirmed: run `gm-scriptorium remote set --mode proxy ...` in a terminal, answer `y` to "Also start remote access when you sign in to Windows?", and sign out and in. The remote listener is up with no tab opened. Run `gm-scriptorium remote off`: `remote_at_signin` is gone from the `[desktop]` table, and the next sign-in is local only.
+7. Run `remote set` with piped input (no terminal): it says remote access will not start at sign-in and writes no confirmation. Run it again to a different remote mode with the flag set and answer `n`: the flag is removed.
 
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
