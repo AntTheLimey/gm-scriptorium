@@ -235,7 +235,8 @@ same lane as before, with three differences:
 - **Session pages get a lane**, because the generator now gives them a Connections section: the NPCs and
   events the session links, in the generator's wording ("appearing").
 - **Kinship reads "family".** The generator groups every kinship type under one label, so a relationship
-  such as "ancestor of" shows as "family".
+  such as "ancestor of" shows as "family" on the page that declares it, and as "family of" before the
+  other page's name on that page. A relationship with no type reads "connected to" there.
 
 How it works: the items, their relationship words, their lines and the mentions all come from the
 section's data block, which the generator has already reduced for the reader. Only one thing comes from

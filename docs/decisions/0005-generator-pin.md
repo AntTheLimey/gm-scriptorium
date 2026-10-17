@@ -1301,7 +1301,7 @@ Repin from `publish-v1.17.0` (db6fb2b0), the second rung toward `publish-v1.34.0
 - **Before and after.** `examples/the-long-lease` built at both pins: the same page set plus
   `js/connections.js` and the stub `js/gurps-tohit.js`; `check` is finding-for-finding identical. Of the
   35 lanes at 1.17.0, 11 are identical and 24 gain named-by items; none loses one. One relationship word
-  changes ("ancestor of" to "family"), and the three session pages gain a lane. 141 packaged assets.
+  changes ("ancestor of" to "family", and "family of" on the other page), and the three session pages gain a lane. 141 packaged assets.
 
 ### What this does not prove here
 
