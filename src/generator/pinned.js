@@ -85,6 +85,9 @@ const {
   keepOnlySections,
   publishedFrontmatter,
   publishMode,
+  // dateText (publish-v1.17.0 use) is how the pin prints a YAML date (lib/processor.js:17-19), which
+  // src/build/dates.js matches to put the "D Month YYYY" form back.
+  dateText,
   // L5 (ADR 0045) reads headings as the generator does: findHeadings is the parser reading
   // (lib/processor.js:204-247), renderInline the build's own inline renderer (lib/processor.js:251-253),
   // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:91-115). Re-exported, never re-implemented.
@@ -244,6 +247,7 @@ module.exports = {
   keepOnlySections,
   publishedFrontmatter,
   publishMode,
+  dateText,
   decidePage,
   publishesPage,
   ALWAYS_EXCLUDE_DIRS,
