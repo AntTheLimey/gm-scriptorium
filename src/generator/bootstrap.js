@@ -138,7 +138,7 @@ function installVaultReadShim(vaultRoot, transforms) {
   };
 }
 
-/** (Not frozen on purpose: test/obsidian-comments.test.js empties it in a child process to prove the output gate refuses a leak.) Order matters, and matches `renderChain` in src/checks/leak/textmodel.js: comments go first so nothing inside a comment is ever rewritten or parsed, then dataview blocks. */
+/** (Not frozen on purpose: test/obsidian-comments.test.js and test/gm-access-build.test.js replace it in a child process to prove the output gate refuses a leak.) Order matters, and matches `renderChain` in src/checks/leak/textmodel.js: comments go first so nothing inside a comment is ever rewritten or parsed, then dataview blocks. */
 const READ_TRANSFORMS_FOR_BUILD = [stripObsidianComments, stripDataviewBlocks];
 
 /** The vault root the staged config points at (src/build/stage.js writes it absolute), or null. */
