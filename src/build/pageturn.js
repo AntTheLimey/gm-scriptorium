@@ -16,9 +16,8 @@ const { findMainOpen } = require('./htmltext');
  *  2. AMENDMENT E-3: on leaf pages only (has <header class="top-nav">, has no
  *     class="landing-hero" -- the same pages the leaf CSS scope targets), a single
  *     <div class="vt-fx" aria-hidden="true"></div>, immediately before the first </main> after the
- *     first <main class="content" ...> (htmltext.js's findMainOpen, the same anchoring
- *     sessions-index.js uses, and it shares that module's residual: a literal "</main>" string inside authored raw
- *     HTML in the leaf would misplace the div).
+ *     first <main class="content" ...> (htmltext.js's findMainOpen). Residual: a literal "</main>"
+ *     string inside authored raw HTML in the leaf would misplace the div.
  *
  * Both insertions are guarded by the ONE marker on the script (idempotency), because they are one
  * pass: a page either gets both changes it qualifies for, or neither.
