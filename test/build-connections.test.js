@@ -162,6 +162,26 @@ test('collectConnections: a named item reads in the other page\'s own wording, n
   assert.deepEqual([doranOnGrix.kind, doranOnGrix.rel], ['named', 'serves Grix']);
 });
 
+test('collectConnections: the two labels the pin makes up itself, Family and Connected, read as "family of" and "connected to" before a name (T-C2)', () => {
+  // The pin files every kinship type under "Family" and a relationship with no type under "Connected"
+  // (lib/ontology.js groupLabel). Every other label is the GM's own type, printed as written.
+  const named = (label) => {
+    const grix = page({ pc: true, cx: cxSection({ subject: 'Grix', tabs: [people([{ n: 'Whatever', d: [item('Doran', '../npcs/doran.html')] }])] }) });
+    const doran = page({ cx: cxSection({ subject: 'Doran', tabs: [people([{ n: label, d: [item('Grix', '../pcs/grix.html', { k: 'Player character' })] }])] }) });
+    const published = new Map([
+      ['characters/pcs/grix.html', { displayTitle: 'Grix', type: 'pc' }],
+      ['characters/npcs/doran.html', { displayTitle: 'Doran', type: 'npc' }],
+    ]);
+    const ownByPath = new Map([['characters/npcs/doran.html', new Set(['characters/pcs/grix.html'])]]);
+    const { pageModels } = collectConnections({ 'characters/pcs/grix.html': grix, 'characters/npcs/doran.html': doran }, published, undefined, undefined, ownByPath);
+    return pageModels.find((p) => p.outputPath === 'characters/pcs/grix.html').items[0].rel;
+  };
+  assert.equal(named('Family'), 'family of Grix');
+  assert.equal(named('Connected'), 'connected to Grix');
+  assert.equal(named('Ally'), 'ally Grix', 'a label the GM typed is printed as written');
+  assert.equal(named('Member of'), 'member of Grix');
+});
+
 test('collectConnections: an item the other page does not list back is this page\'s own, as a session\'s "Appearing" NPCs are (T-C2)', () => {
   // The pin adds a session's NPCs to its Connections (lib/build.js connectionExtrasFor); they are no
   // relationship, so the NPC's own section lists the session only as a mention.

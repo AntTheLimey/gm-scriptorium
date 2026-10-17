@@ -32,7 +32,10 @@ const CX_DATA_RE = /<script type="application\/json" class="cx-data">([\s\S]*?)<
 // The pin's own script for that section. A page whose section the lane replaced has no use for it.
 const CX_SCRIPT_RE = /<script src="[^"]*js\/connections\.js"><\/script>\n?/;
 
-const EXCLUDED_TYPES = new Set(['session', 'campaign_overview', 'roster', 'timeline']);
+// How a named item words the two group labels the pin makes up, before this page's name.
+const PIN_LABEL_WORDING = { Family: 'family of', Connected: 'connected to' };
+
+const EXCLUDED_TYPES =new Set(['session', 'campaign_overview', 'roster', 'timeline']);
 
 const GROUP_DEFS = [
   { key: 'tie' },
@@ -301,10 +304,11 @@ function collectConnections(htmlByPath, published, vocab = DEFAULT_VOCAB, wrapUp
         src = outputPath;
       } else if (!it.mention) {
         // The other page's relationship to this one, in that page's own wording: its section lists
-        // this page under the label it wrote.
+        // this page under the label it wrote. Two labels are the pin's own, not a type the GM wrote
+        // (lib/ontology.js groupLabel): every kinship type is "Family", no type at all is "Connected".
         kind = 'named';
-        const label = back.label;
-        rel = label ? `${label.toLowerCase()} ${pageInfo.displayTitle}` : null;
+        const label = back.label ? (PIN_LABEL_WORDING[back.label] || back.label.toLowerCase()) : '';
+        rel = label ? `${label} ${pageInfo.displayTitle}` : null;
         line = it.lines.length > it.own ? it.lines[it.own] : null;
         src = it.resolvedPath;
       } else {
