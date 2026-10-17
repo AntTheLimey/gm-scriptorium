@@ -179,8 +179,8 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 - **The Story nav split toggle** is retired (`docs/decisions/0014-story-nav-split-toggle.md`'s
   addendum): upstream's `publish-v1.12.4` renders the grouped Story toggle as a `<button>` with "Story so
   far" as the menu's first entry. `test/story-nav-pin.test.js` proves that on a real build, so a regression in
-  the pin shows up by name. One downstream shim remains, `src/build/storyfocus.js` (Escape inside the Story
-  dropdown returns focus to the toggle; retire when the pin does it).
+  the pin shows up by name. The last downstream shim, which returned focus to the toggle on Escape, is
+  retired too: the pin's `js/nav.js` has done it since `publish-v1.15.1`.
 - **The Sessions index page writer** (`src/build/sessions-index.js`,
   `docs/decisions/0006-post-build-page-writer.md`): the generator's `DIR_LABELS`
   (`lib/templates/base.js:3-20` at the pinned commit) omits `sessions`, so it never writes
