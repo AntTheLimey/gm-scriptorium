@@ -1244,6 +1244,13 @@ Scriptorium's Connections build reads. The release-tarball pin source is unchang
 - **Before and after.** `examples/the-long-lease` built at both pins: the same page set plus
   `js/previews.js` and `previews.json`; `check` is finding-for-finding identical. 139 packaged assets, up
   from 132.
+- **Dates, found by a later page-text comparison.** That before-and-after compared page sets and
+  `check` findings, not page text, and missed one change. From `publish-v1.16.0` the pin prints a YAML
+  date as `2026-07-11`, which `src/build/dates.js` (written for `Date.prototype.toString()` text) does
+  not recognise, so the-long-lease's session badges changed from "11 July 2026" to `2026-07-11`. The
+  date step now puts the old form back ([ADR 0016](0016-book-leaves-and-page-motion.md), last
+  addendum); every printed date on every page of the-long-lease, and of a copy with a YAML date in every
+  date field, now matches a build at 1.14.0.
 
 ### What this does not prove here
 

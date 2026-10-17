@@ -2508,6 +2508,14 @@ The publish-v1.17.0 repin, [ADR 0042](../docs/decisions/0042-stub-section-guard.
 2. `findstr /s /m "stubleaksentinel stubhushsentinel storyordersentinel" S\out\*` finds nothing, including `S\out\search-index.json`. `S\out\locations\cellar.html` has no "Mentioned In" entry.
 3. `findstr /s /m "publishedappearancesentinel storyappearancesentinel" S\out\*` finds both, so steps 1 and 2 tested a real stub page and a real stub PC story. Re-hash the real config.
 
+### C212: YAML dates read "D Month YYYY" in badges, event headers and timelines, in the real win-x64 exe
+
+The publish-v1.17.0 repin, [ADR 0016](../docs/decisions/0016-book-leaves-and-page-motion.md)'s last addendum. The pin now prints a YAML date as `2026-07-11`, and `src/build/dates.js` puts "11 July 2026" back. **Mark this OPEN: Linux and macOS tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of the-long-lease example vault, registered as campaign `c212` with an output folder `S\out` that does not exist, and add `in_game_date: 2031-02-12` (unquoted) to `Events\The Chorister's Verse.md`.
+
+1. `build c212 --config "S\config.toml"` exits 0.
+2. The session pages' date badges read "11 July 2026", "25 July 2026" and "8 August 2026". `S\out\events\the-choristers-verse.html` has a "Date" header line reading "12 February 2031", and `S\out\locations\maudrys-barrow.html`'s timeline shows "12 February 2031" beside that event.
+3. `findstr /s /m "2031-02-12" S\out\*.html` finds no page. Re-hash the real config.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.
