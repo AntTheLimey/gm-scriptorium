@@ -271,17 +271,15 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 
 ### The vault config contract Scriptorium reads or validates
 
-- **`vault.config.json`**: the generator's own `scanVaultReport`/`mapFolder`
-  (`lib/scanner.js:37-54,287`) consume `config.excludeDirs` (via `.some(...)`) and `config.folderMap`
-  (via `Object.entries(...)`) with **no defaulting of its own**, neither key has a fallback
-  anywhere in `lib/config.js` or `PUBLISH_DEFAULTS`. `src/cli/check.js`'s `assertScanKeysPresent()`
-  refuses early, before `check` or `build` ever reaches the generator, when either key is missing or
-  wrongly typed: a **missing `folderMap` still throws** `TypeError: Cannot convert undefined or null
-  to object` at `mapFolder`'s own `Object.entries(folderMap)` (`lib/scanner.js:39`) if this guard
-  were ever bypassed, and a **missing `excludeDirs`** throws `TypeError: excludeDirs.some is not a
-  function` at `lib/scanner.js:81`. This is a required-keys contract on the generator's side, not an
-  optional-with-defaults one, and Scriptorium's check exists to fail loudly on the Scriptorium side
-  first, with a readable error, rather than let the generator's raw exception surface.
+- **`vault.config.json`**: Scriptorium requires `excludeDirs` (a list) and `folderMap` (a map) in the
+  site config. `src/cli/check.js`'s `assertScanKeysPresent()` refuses early, before `check` or `build`
+  reaches the generator, when either is missing or wrongly typed. The generator versions it was written
+  for threw a raw `TypeError` in their scan. From publish-v1.14.0 at the latest the generator fills in
+  defaults itself (`resolveConfig`, `lib/config.js`), but its default `folderMap` maps nothing, so a
+  site config without one builds a site of empty index pages, and only a scanner warning per folder
+  says why. The refusal stays as Scriptorium's own check, so a GM gets one clear message instead
+  (owner decision, 2026-10-17). Scriptorium's own copy of the scan (`src/vault/publishset.js`) also
+  reads `excludeDirs` as a list.
 - **`vault-config.md`** frontmatter (a vault's `_meta/vault-config.md`, see the fixtures under
   `test/fixtures/*/​_meta/vault-config.md`): the `publish.exclude_sections` list a campaign author
   writes there is unioned case-insensitively with the generator's own `PUBLISH_DEFAULTS.exclude_sections`
