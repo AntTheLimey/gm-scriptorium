@@ -10,13 +10,11 @@ const { scanObsidianComments, stripObsidianComments } = require('../src/vault/co
 const { scanCommentsInOutput, needlesFor } = require('../src/checks/leak/commentscan');
 const bootstrap = require('../src/generator/bootstrap');
 
-// A preload standing in for "every comment strip failed". Emptying our read shim is no longer
-// enough: from publish-v1.17.0 the pin strips `%%` comments itself (lib/processor.js:877). So the
-// shim is swapped for one that deletes the markers and keeps the text, which reaches the build with
-// nothing left for either strip to find. The output gate reads the comments from the vault itself.
+// A preload standing in for "every comment strip failed": test/helpers/comment-leak-preload.js deletes
+// the `%%` markers, keeping their text, in what the generator reads, so nothing is left for its strip to
+// find. The output gate reads the comments from the vault itself.
 function unwrapCommentsPreload() {
-  const bootstrap = JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'));
-  return `const t = require(${bootstrap}).READ_TRANSFORMS_FOR_BUILD;\nt.length = 0;\nt.push((text) => text.split('%%').join(''));\n`;
+  return `require(${JSON.stringify(path.join(__dirname, 'helpers', 'comment-leak-preload.js'))});\n`;
 }
 
 /*
@@ -100,34 +98,10 @@ test('%%% is treated as an opener (fail closed), never published', () => {
 
 // ---- the shim ----
 
-test('the build shim strips comments and leaves a table-cell escaped pipe to the pin, in vault .md reads only', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cmt-shim-'));
-  const vault = path.join(root, 'vault');
-  fs.mkdirSync(vault);
-  fs.writeFileSync(path.join(vault, 'a.md'), 'a %%hid%% b\n| [[T\\|L]] |\n');
-  fs.writeFileSync(path.join(root, 'outside.md'), 'a %%hid%% b\n');
-  fs.writeFileSync(path.join(vault, 'a.txt'), 'a %%hid%% b\n');
-  const orig = fs.readFileSync;
-  const restore = bootstrap.installVaultReadShim(vault, bootstrap.READ_TRANSFORMS_FOR_BUILD);
-  try {
-    assert.equal(fs.readFileSync(path.join(vault, 'a.md'), 'utf8'), 'a  b\n| [[T\\|L]] |\n');
-    assert.equal(fs.readFileSync(path.join(root, 'outside.md'), 'utf8'), 'a %%hid%% b\n');
-    assert.equal(fs.readFileSync(path.join(vault, 'a.txt'), 'utf8'), 'a %%hid%% b\n');
-    assert.equal(fs.readFileSync(path.join(vault, 'a.md')).toString(), 'a %%hid%% b\n| [[T\\|L]] |\n');
-  } finally {
-    restore();
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-  assert.equal(fs.readFileSync, orig);
-});
-
-test('the build installs exactly one transform, the comment strip (the escaped-pipe rewrite is retired, ADR 0043 addendum)', () => {
-  assert.deepEqual(bootstrap.READ_TRANSFORMS_FOR_BUILD, [stripObsidianComments]);
+test('the build ships no vault read hook: the pin strips comments itself (ADR 0044, last addendum)', () => {
+  assert.equal(bootstrap.installVaultReadShim, undefined);
+  assert.equal(bootstrap.READ_TRANSFORMS_FOR_BUILD, undefined);
   assert.equal(bootstrap.installEscapedPipeReadShim, undefined);
-});
-
-test('the build installs comment stripping first', () => {
-  assert.equal(bootstrap.READ_TRANSFORMS_FOR_BUILD[0], stripObsidianComments);
 });
 
 // ---- the output scan, on a hand-made tree ----

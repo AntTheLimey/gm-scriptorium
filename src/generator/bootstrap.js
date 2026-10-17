@@ -2,7 +2,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const { stripObsidianComments } = require('../vault/comments');
 const { installSegmenterShim } = require('./intl-shim');
 const { applyRedactions, redactionReport } = require('./redactions');
 // FR-19/SD-19: install at module load too, alongside src/generator/pinned.js's own install --
@@ -82,72 +81,10 @@ function installCopyFileShim() {
   };
 }
 
-/**
- * ADR 0044 builds on ADR 0043's shim. The read shim is one generic mechanism with an ordered list of
- * text transforms; each transform is independent. The build installs READ_TRANSFORMS_FOR_BUILD,
- * which is now only the Obsidian comment strip (a leak guard).
- *
- * The escaped-pipe rewrite (ADR 0043, issue #48) that used to ride along is retired at publish-v1.14.0:
- * the pin has read a table-cell `[[T\|L]]` itself since publish-v1.12.3 (`lib/wikilink.js`), so the
- * rewrite only double-applied. `check`'s own reader keeps its rewrite (src/vault/links.js).
- */
-
-/**
- * The vault read shim: vault-scoped, text-only, `.md`-only, nothing-written
- * rules, applying each function in `transforms` in order to what the build reads.
- *
- * @param {string|null} vaultRoot
- * @param {Array<(text: string) => string>} transforms
- * @returns {() => void} restore
- */
-function installVaultReadShim(vaultRoot, transforms) {
-  const original = fs.readFileSync;
-  let realRoot = null;
-  let lexRoot = null;
-  if (typeof vaultRoot === 'string' && vaultRoot.length > 0) {
-    lexRoot = path.resolve(vaultRoot);
-    try {
-      realRoot = fs.realpathSync(lexRoot);
-    } catch (_) {
-      realRoot = null;
-    }
-  }
-  const under = (root, p) => p === root || p.startsWith(root.endsWith(path.sep) ? root : root + path.sep);
-  const inVault = (file) => {
-    if (realRoot === null) return false;
-    try {
-      const lex = path.resolve(file);
-      if (!under(lexRoot, lex) && !under(realRoot, lex)) return false;
-      return under(realRoot, fs.realpathSync(lex));
-    } catch (_) {
-      return false;
-    }
-  };
-  fs.readFileSync = function patchedReadFileSync(file, options) {
-    const result = original.apply(fs, arguments);
-    const enc = typeof options === 'string' ? options : options && options.encoding;
-    if (typeof result === 'string' && enc && typeof file === 'string' && file.endsWith('.md') && inVault(file)) {
-      return transforms.reduce((text, fn) => fn(text), result);
-    }
-    return result;
-  };
-  return function restore() {
-    fs.readFileSync = original;
-  };
-}
-
-/** (Not frozen on purpose: test/obsidian-comments.test.js and test/gm-access-build.test.js replace it in a child process to prove the output gate refuses a leak.) Order matters: comments go first so nothing inside a comment is ever rewritten or parsed. */
-const READ_TRANSFORMS_FOR_BUILD = [stripObsidianComments];
-
-/** The vault root the staged config points at (src/build/stage.js writes it absolute), or null. */
-function stagedVaultRoot(configPath) {
-  try {
-    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    return typeof cfg.vaultPath === 'string' ? path.resolve(path.dirname(configPath), cfg.vaultPath) : null;
-  } catch (_) {
-    return null;
-  }
-}
+// Retired: the vault read shim, which stripped Obsidian %% comments from what the generator read. The
+// pin strips them itself since publish-v1.16.0, and a build with and without the shim is byte-identical
+// (docs/decisions/0044-obsidian-comments-withheld.md, last addendum). The output gate still reads the
+// comments from the vault and refuses a build that publishes one.
 
 function captureConsole() {
   const captured = [];
@@ -236,7 +173,6 @@ function classifyGeneratorLog(captured) {
  */
 function runGeneratorBuild(configPath) {
   const restoreShim = installCopyFileShim();
-  const restoreReadShim = installVaultReadShim(stagedVaultRoot(configPath), READ_TRANSFORMS_FOR_BUILD);
   const restoreSegmenterShim = installSegmenterShim();
   const consoleCapture = captureConsole();
   let error = null;
@@ -255,7 +191,6 @@ function runGeneratorBuild(configPath) {
     error = err;
   } finally {
     consoleCapture.restore();
-    restoreReadShim();
     restoreShim();
     restoreSegmenterShim();
   }
@@ -263,4 +198,4 @@ function runGeneratorBuild(configPath) {
   return { error, renderErrors, detail, raw: consoleCapture.captured, redactions: redactionReport() };
 }
 
-module.exports = { installVaultReadShim, READ_TRANSFORMS_FOR_BUILD, installCopyFileShim, isInsideSnapshot, runGeneratorBuild, classifyGeneratorLog };
+module.exports = { installCopyFileShim, isInsideSnapshot, runGeneratorBuild, classifyGeneratorLog };

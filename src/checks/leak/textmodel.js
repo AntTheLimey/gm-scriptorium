@@ -31,7 +31,8 @@ function applyStrip(fn, text) {
 }
 
 /**
- * ADR 0044 first removes Obsidian %% comments (done by the build's read shim, before processContent).
+ * ADR 0044 first removes Obsidian %% comments, before processContent, as the build's read shim did until it
+ * was retired (the pin strips them itself since publish-v1.16.0, inside processContent).
  * processContent's strip order (lib/processor.js:1395-1437), minus the parts that
  * need a link/image map (resolveImageEmbeds, resolveWikiLinks, md.render):
  * stripDataview > stripGmOnly > stripSpoiler > stripHtmlComments >
