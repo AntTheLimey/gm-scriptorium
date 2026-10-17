@@ -7,6 +7,7 @@ const pinned = require('../generator/pinned');
 const { collectRecaps, topLevelListItems } = require('./recaps');
 const { linkSiteScript, writeSiteScript, serializeDataIsland } = require('./sitescript');
 const { computePublishedSet } = require('../vault/publishset');
+const { scanAllNotesForPairing } = require('../vault/sessionpairs');
 const { DEFAULT_VOCAB } = require('./labels');
 
 /*
@@ -118,13 +119,16 @@ function readCxData(regionHtml) {
  * The relationship targets of each published page's reader-visible frontmatter, resolved to output
  * paths the way the pin's Connections model resolves them (lib/connections.js:159-169), against the
  * pin's own link table. Decides only whether a connection is this page's own (a tie) or the other
- * page's (named by); every word the lane prints comes from the pin's section.
+ * page's (named by); every word the lane prints comes from the pin's section. As in the pin, the link
+ * table is built from the raw frontmatter (lib/build.js:535), then every GM alias is rewritten to its
+ * owner's title (`rewriter`, lib/build.js:546), then the frontmatter is reduced to its published view.
  *
  * @param {object[]} publishedPages
  * @param {object} publishConfig
+ * @param {{ frontmatter: function(object): object } | null} [rewriter] the pin's gmAliasRewriter, or null when the vault has no GM alias
  * @returns {Map<string, Set<string>>} outputPath -> output paths its own relationships name
  */
-function ownTargets(publishedPages, publishConfig) {
+function ownTargets(publishedPages, publishConfig, rewriter = null) {
   const linkMap = pinned.buildLinkMap(
     publishedPages.map((p) => ({ title: p.title, frontmatter: p.frontmatter, outputPath: p.outputPath, vaultPath: p.rel.replace(/\.md$/i, '') })),
   );
@@ -141,7 +145,8 @@ function ownTargets(publishedPages, publishConfig) {
   const fieldOverrides = (publishConfig.overrides && publishConfig.overrides.fields) || {};
   const out = new Map();
   for (const p of publishedPages) {
-    const fm = pinned.publishedFrontmatter(p.frontmatter, publishConfig.exclude_fields || [], fieldOverrides[p.rel] || {});
+    const written = rewriter ? rewriter.frontmatter(p.frontmatter) : p.frontmatter;
+    const fm = pinned.publishedFrontmatter(written, publishConfig.exclude_fields || [], fieldOverrides[p.rel] || {});
     const raw = fm.relationships;
     const targets = [];
     if (Array.isArray(raw)) {
@@ -518,8 +523,14 @@ function transformConnections(html, model, vocab = DEFAULT_VOCAB) {
  * @returns {{ pagesPatched: number, lanes: number, hubOnly: number, removedOnly: string[], warnings: string[] }}
  */
 function applyConnections(siteRoot, { vaultPath, jsonConfig, vocab = DEFAULT_VOCAB, wrapUpByHub = new Map() }) {
-  const { publishedPages, publishConfig } = computePublishedSet(vaultPath, jsonConfig);
-  const ownByPath = ownTargets(publishedPages, publishConfig);
+  const { publishedPages, unpublishedPages, publishConfig } = computePublishedSet(vaultPath, jsonConfig);
+  // The notes pairHubs hands the pin's rewriter (lib/session-hub.js:147-152): every scanned page,
+  // published or not, then every note the scan skipped.
+  const corpus = publishedPages.concat(unpublishedPages);
+  const { notes } = scanAllNotesForPairing(vaultPath);
+  const scanned = new Set(corpus.map((p) => p.sourcePath));
+  const rewriter = pinned.gmAliasRewriter(corpus.concat(notes.filter((n) => !scanned.has(n.sourcePath))), publishedPages, notes);
+  const ownByPath = ownTargets(publishedPages, publishConfig, rewriter);
   const published = new Map();
   for (const p of publishedPages) {
     published.set(p.outputPath, { displayTitle: p.displayTitle, type: p.frontmatter.type || '' });

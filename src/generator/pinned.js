@@ -88,6 +88,10 @@ const {
   // dateText (publish-v1.17.0 use) is how the pin prints a YAML date (lib/processor.js:17-19), which
   // src/build/dates.js matches to put the "D Month YYYY" form back.
   dateText,
+  // gmAliasRewriter (publish-v1.21.0 use) is how the pin rewrites every GM alias to its owner's title
+  // before anything renders (lib/processor.js:1631, run by pairHubs at lib/build.js:546);
+  // src/build/connections.js applies it before resolving a note's own relationships.
+  gmAliasRewriter,
   // L5 (ADR 0045) reads headings as the generator does: findHeadings is the parser reading
   // (lib/processor.js:204-247), renderInline the build's own inline renderer (lib/processor.js:251-253),
   // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:91-115). Re-exported, never re-implemented.
@@ -251,6 +255,7 @@ module.exports = {
   publishedFrontmatter,
   publishMode,
   dateText,
+  gmAliasRewriter,
   decidePage,
   publishesPage,
   ALWAYS_EXCLUDE_DIRS,

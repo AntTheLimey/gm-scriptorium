@@ -19,6 +19,7 @@ const {
   applyConnections,
 } = require('../src/build/connections');
 const { runAtomicBuild } = require('../src/build/run');
+const pinned = require('../src/generator/pinned');
 
 /*
  * From publish-v1.18.0 the pin draws a page's Connections as one <section class="cx"> holding the
@@ -425,6 +426,19 @@ test('ownTargets: list and map forms, a labelled link, an alias and a vault path
   assert.deepEqual([...own.get('characters/npcs/muted.html')], [], 'a campaign-wide exclude names nothing');
 });
 
+test('ownTargets: a target named by its owner\'s GM alias resolves to the owner, as the pin rewrites it before Connections', () => {
+  const pages = [
+    { title: 'Grix', rel: 'Characters/PCs/Grix.md', outputPath: 'characters/pcs/grix.html', frontmatter: { type: 'pc', gm_aliases: ['The Courier'] } },
+    { title: 'Doran', rel: 'Characters/NPCs/Doran.md', outputPath: 'characters/npcs/doran.html', frontmatter: { type: 'npc', relationships: [{ target: '[[The Courier]]', type: 'knows' }] } },
+    { title: 'Tilda', rel: 'Characters/NPCs/Tilda.md', outputPath: 'characters/npcs/tilda.html', frontmatter: { type: 'npc', relationships: { knows: 'The Courier' } } },
+  ];
+  const rewriter = pinned.gmAliasRewriter(pages, pages, []);
+  const own = ownTargets(pages, {}, rewriter);
+  assert.deepEqual([...own.get('characters/npcs/doran.html')], ['characters/pcs/grix.html']);
+  assert.deepEqual([...own.get('characters/npcs/tilda.html')], ['characters/pcs/grix.html'], 'a bare name in a relationship is rewritten too');
+  assert.deepEqual([...ownTargets(pages, {}, null).get('characters/npcs/doran.html')], [], 'with no rewriter the alias names no page');
+});
+
 // -- real builds: the lane reads what the pin really writes ------------------------------------
 
 function buildStoryVault(dir) {
@@ -461,6 +475,27 @@ test('real build of story-vault: each lane holds the ties and named-by items the
       assert.ok(!html.includes('class="cx"'), `${rel} still carries the pin's section`);
       assert.ok(!html.includes('js/connections.js'), `${rel} still loads the pin's section script`);
     }
+  });
+});
+
+test('real build of story-vault with a GM alias: a relationship naming the alias is still this page\'s own tie', () => {
+  withTmpDir((dir) => {
+    // Copy the fixture, give Grix a GM alias, and point Doran's relationship at the alias.
+    const vaultPath = path.join(dir, 'vault');
+    fs.cpSync(path.join(__dirname, 'fixtures', 'story-vault'), vaultPath, { recursive: true });
+    const grix = path.join(vaultPath, 'Characters', 'PCs', 'Grix.md');
+    fs.writeFileSync(grix, fs.readFileSync(grix, 'utf8').replace('title: Grix\n', 'title: Grix\ngm_aliases:\n  - The Courier\n'));
+    const doran = path.join(vaultPath, 'Characters', 'NPCs', 'Doran.md');
+    fs.writeFileSync(doran, fs.readFileSync(doran, 'utf8').replace('"[[Grix]]"', '"[[The Courier]]"'));
+    const siteConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'story-vault-site-config.json'), 'utf8'));
+    const siteDir = path.join(dir, 'site');
+    fs.mkdirSync(siteDir, { recursive: true });
+    const out = path.join(dir, 'out');
+    const result = runAtomicBuild({ vaultPath, userJsonConfig: { ...siteConfig, vaultPath }, finalOut: out, siteDir, campaign: 'cx', force: true });
+    assert.equal(result.ok, true, result.ok ? '' : JSON.stringify(result.error && result.error.message));
+    const pick = (rel) => laneOf(out, rel).data.items.map((i) => [i.name, i.kind, i.rel, i.line]);
+    assert.deepEqual(pick('characters/npcs/doran.html'), [['Grix', 'tie', 'knows', 'Doran once helped Grix past the freight court gate.']]);
+    assert.ok(!fs.readFileSync(path.join(out, 'characters/npcs/doran.html'), 'utf8').includes('The Courier'), 'the GM alias never reaches the page');
   });
 });
 
