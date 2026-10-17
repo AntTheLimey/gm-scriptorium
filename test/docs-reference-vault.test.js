@@ -206,7 +206,7 @@ test('control: the scan finds jsonConfig.fooBar and userJsonConfig.qux, and igno
 test('the keys the source reads from vault.config.json are JSON_READ_KEYS, both ways', () => {
   const scanned = [...scanReadKeys(srcFiles().map((f) => fs.readFileSync(f, 'utf8')))].sort();
   assert.deepEqual(scanned, [...gen.JSON_READ_KEYS].sort(), 'the source reads a vault.config.json key the generator does not list (or the reverse): update JSON_READ_KEYS in scripts/docs-reference.js and add text');
-  assert.equal(gen.JSON_READ_KEYS.length, 12);
+  assert.equal(gen.JSON_READ_KEYS.length, 11);
 });
 
 // ---- the page's upstream links ----
