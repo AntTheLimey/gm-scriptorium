@@ -10,7 +10,6 @@ const { applyAssetRedactions } = require('../generator/redactions');
 const { writeSiteNotice } = require('./notice');
 const { writeHouseStyle } = require('./housestyle');
 const { writeThemeAssets } = require('./themeassets');
-const { writeSessionsIndex } = require('./sessions-index');
 const { applySessionBadgeFields } = require('./sessionbadges');
 const { applyDateFormat } = require('./dates');
 const { applyAccordionOpen } = require('./accordions');
@@ -142,10 +141,8 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   const sessionPairing = sessionpairs.computeSessionPairing({ vaultPath, publishSet: sessionPublishSet });
   const sessionPairDivergence = compareSessionPairs(wrapUpByHub, sessionPairing);
 
-  // UI-01 / issue 214 (docs/decisions/0006-post-build-page-writer.md): the generator never writes
-  // sessions/index.html, so Scriptorium writes it here, before the notice footer pass below picks
-  // it up like any other page.
-  const sessionsIndex = writeSessionsIndex(stagingOut, { siteTitle: userJsonConfig.siteTitle });
+  // Retired: Scriptorium's own sessions/index.html writer. The pin has written that page itself since
+  // publish-v1.11.40 (docs/decisions/0006-post-build-page-writer.md, last addendum).
 
   // The fourth licence-provenance fix (docs/PROVENANCE.md B4): every site
   // gm-apprentice-publish builds redistributes lunr.js and its own CSS/JS
@@ -286,7 +283,6 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
     connections,
     siteScript,
     pageTurn,
-    sessionsIndex,
     redactions,
     outputScan: { findings: scanFindings, overridden: scanHasError && force },
   };

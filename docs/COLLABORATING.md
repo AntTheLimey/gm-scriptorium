@@ -181,22 +181,13 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   far" as the menu's first entry. `test/story-nav-pin.test.js` proves that on a real build, so a regression in
   the pin shows up by name. The last downstream shim, which returned focus to the toggle on Escape, is
   retired too: the pin's `js/nav.js` has done it since `publish-v1.15.1`.
-- **The Sessions index page writer** (`src/build/sessions-index.js`,
-  `docs/decisions/0006-post-build-page-writer.md`): the generator's `DIR_LABELS`
-  (`lib/templates/base.js:3-20` at the pinned commit) omits `sessions`, so it never writes
-  `sessions/index.html`, though the nav always links to it. This module writes it by splicing new
-  content between the first `<main class="content">` and the following `</main>` of a donor
-  `sessions/*.html` page. **Self-retirement here is a plain existence check, not a source-text
-  match**: if `sessions/index.html` already exists on disk before this module runs (whether from a
-  prior run of this same writer, or from the generator's own `DIR_LABELS` output once fixed
-  upstream), it returns `{ written: false, reason: 'already-generated' }` and never overwrites it.
-  This is the same bug: upstream has fixed it. `lib/templates/base.js`'s `DIR_LABELS` on `main`
-  today includes `'sessions': 'Sessions'`, with a comment citing
-  [#214](https://github.com/AntTheLimey/gm-apprentice/issues/214) directly, and `lib/build.js`
-  (around lines 874-912 at the pinned commit) now writes it the same way as every other section
-  index. Once a pin bump brings that in, this module's existence-check makes it retire itself
-  automatically, with no further code change needed, the cleaner outcome of the two self-retiring
-  patches in this repo, contrasted with `sectionfilter.js` above.
+- **The Sessions index page writer** is retired
+  (`docs/decisions/0006-post-build-page-writer.md`, last addendum). The generator has written
+  `sessions/index.html` itself since `publish-v1.11.40` (upstream
+  [#214](https://github.com/AntTheLimey/gm-apprentice/issues/214)), so Scriptorium's writer only ever
+  found the page already there. `test/build-sessions-index.test.js` now builds `story-vault` and checks
+  that the generator's own page exists and links every session, so a pin that stops writing it fails
+  at the pin bump, by name.
 - **The `events/index.html` redirect-stub exception** (`src/build/pageturn.js`'s own comment, and
   its test in `test/build-pageturn.test.js`): the generator's `lib/build.js` writes `events/index.html`
   as a bare `<meta http-equiv="refresh">` redirect stub straight to the campaign timeline whenever
