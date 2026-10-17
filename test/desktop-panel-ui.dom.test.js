@@ -270,6 +270,8 @@ for (const browserName of ['chromium', 'firefox']) {
 
   /** The tray's landing on a fresh load, with the web fonts held back. Resolves once the Overview is drawn in full. */
   async function landWithFontsHeld(ctx, page) {
+    // The page from open() has taken its session answer once the frame is built; until then it could take the landing meant for the reload.
+    await page.waitForSelector('[data-screen="overview"]', { state: 'attached' });
     await page.addInitScript(LANDING_COUNTERS);
     const fonts = await holdRequests(page, '**/assets/fonts/**');
     ctx.launchLanding = { to: 'updates', expiresAt: Date.now() + 15000 };
@@ -326,8 +328,86 @@ for (const browserName of ['chromium', 'firefox']) {
         return r.top >= 0 && r.top < window.innerHeight;
       });
       assert.equal(inView, true, 'the top of the card is in view');
+      const below = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().top >= document.querySelector('[data-role="top-bar"]').getBoundingClientRect().bottom);
+      assert.equal(below, true, 'the top edge is below the top bar');
     });
   });
+
+  test(`the landing in ${browserName} keeps the Updates card's top edge below the narrow top bar`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    // 844 is a usual narrow window. 760 is a band height: the card is 722 to 723 px tall at 390 wide, so 760
+    // leaves 36 to 38 px, under the 59 px (the 75 px top bar less 16 px) inside which centring the card with
+    // the space kept above it would put its top under the bar.
+    await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
+      for (const size of [{ width: 390, height: 844 }, { width: 390, height: 760 }]) {
+        const page = await open(size, { hash: '#/images', waitCard: false });
+        await page.waitForFunction(() => window.location.hash === '#/images');
+        const fonts = await landWithFontsHeld(ctx, page);
+        await fonts.release();
+        await fontsLoaded(page);
+        await switchFocused(page);
+        await page.evaluate(() => document.fonts.ready);
+        if (size.height === 760) {
+          const slack = await page.evaluate(() => 760 - document.getElementById('updates').getBoundingClientRect().height);
+          assert.ok(slack > 0 && slack < 59, `760 is a band height for this card (${slack} px to spare)`);
+        }
+        const inView = await page.evaluate(() => {
+          const r = document.getElementById('updates').getBoundingClientRect();
+          return r.top >= 0 && r.top < window.innerHeight;
+        });
+        assert.equal(inView, true, `the top of the card is in view at ${size.height}`);
+        const below = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().top >= document.querySelector('[data-role="top-bar"]').getBoundingClientRect().bottom);
+        assert.equal(below, true, `the top edge is below the top bar at ${size.height}`);
+      }
+    });
+  });
+
+  /**
+   * The tray's landing on a fresh load with the ports card drawn above the Updates card, which is how
+   * the panel comes out when the desktop answer beats the update answer: the update answer is held until
+   * the welcome and the ports card are in. Resolves once the switch has focus (the landing's last act) and
+   * the web fonts are in (the landing's own condition, checked again here).
+   */
+  async function landBelowPortsCard(ctx, page) {
+    await page.waitForSelector('[data-screen="overview"]', { state: 'attached' });
+    await page.addInitScript(LANDING_COUNTERS);
+    const update = await holdRequests(page, '**/api/update');
+    ctx.launchLanding = { to: 'updates', expiresAt: Date.now() + 15000 };
+    await page.reload({ waitUntil: 'load' });
+    await update.seen;
+    await page.waitForSelector('[data-part="welcome"]');
+    await page.waitForSelector('#desktop-ports');
+    await update.release();
+    await page.waitForSelector('[data-part="update-setting"]');
+    await switchFocused(page);
+    await fontsLoaded(page);
+    await page.evaluate(() => document.fonts.ready);
+  }
+
+  for (const shape of [
+    { size: { width: 390, height: 600 }, narrow: true },
+    { size: { width: 1280, height: 400 }, narrow: false },
+  ]) {
+    test(`a tall Updates card drawn below the ports card in ${browserName} at ${shape.size.width}x${shape.size.height}: the landing keeps its top edge on screen${shape.narrow ? ' and below the top bar' : ''}`, { skip: SKIP, timeout: 240000 }, async (t) => {
+      await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
+        const page = await open(shape.size, { hash: '#/images', waitCard: false });
+        await page.waitForFunction(() => window.location.hash === '#/images');
+        await landBelowPortsCard(ctx, page);
+        assert.deepEqual(await restOrder(page), ['div', 'section', 'desktop-slot', 'update-setting'], 'the ports card is above the Updates card');
+        const tall = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().height > window.innerHeight);
+        assert.equal(tall, true, 'the card is taller than this window');
+        const inView = await page.evaluate(() => {
+          const r = document.getElementById('updates').getBoundingClientRect();
+          return r.top >= 0 && r.top < window.innerHeight;
+        });
+        assert.equal(inView, true, 'the top of the card is in view');
+        if (shape.narrow) {
+          const below = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().top >= document.querySelector('[data-role="top-bar"]').getBoundingClientRect().bottom);
+          assert.equal(below, true, 'the top edge is below the top bar');
+        }
+        assert.deepEqual(await page.evaluate(() => ({ si: window.__n.si, sw: window.__n.sw })), { si: 1, sw: 1 }, 'one scroll, one focus');
+      });
+    });
+  }
 
   test(`the landing in ${browserName} leaves the page alone when the GM scrolls or moves focus before the fonts arrive`, { skip: SKIP, timeout: 240000 }, async (t) => {
     for (const act of ['wheel', 'tab', 'focus']) {
