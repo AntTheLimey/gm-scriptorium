@@ -1,0 +1,77 @@
+name: wincheck
+
+# Owner's fork only, never part of a pull request. Runs the scriptable parts of the Windows runbook
+# (.agents/windows-verification.md) on a real Windows runner, against the win-x64 exe cross-compiled
+# on Linux the way releases are. Results are extra evidence; the criteria stay OPEN for the test machine.
+on:
+  push:
+    branches: ['wincheck/**']
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: node scripts/package.js --target node22-win-x64 --out dist/gm-scriptorium-win-x64.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win-exe
+          path: dist/gm-scriptorium-win-x64.exe
+
+  windows:
+    needs: package
+    runs-on: windows-latest
+    steps:
+      # The runbook asks for an LF tree: a CRLF checkout changes the example vault's counts.
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: win-exe
+          path: exe
+      - name: C184, the packaged smoke against the exe (Node drives the steps; the exe runs on its own)
+        run: node scripts/packaged-smoke.js "$env:GITHUB_WORKSPACE\exe\gm-scriptorium-win-x64.exe"
+      - name: C1, C209 to C215, with Node removed from PATH
+        shell: pwsh
+        run: ./.github/wincheck/criteria.ps1 -Exe "$env:GITHUB_WORKSPACE\exe\gm-scriptorium-win-x64.exe" -Repo "$env:GITHUB_WORKSPACE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: criteria-results
+          path: ${{ runner.temp }}/wincheck-results.json
+
+  windows-source-tests:
+    # Informational: the source suite on Windows has no baseline yet, so compare a branch with main.
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm test 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\npm-test-windows.log"; exit 0
+        shell: pwsh
+      - name: Summary
+        shell: pwsh
+        run: |
+          $log = Get-Content "$env:RUNNER_TEMP\npm-test-windows.log"
+          $sum = $log | Where-Object { $_ -match '^. (tests|pass|fail|skipped) ' }
+          $files = $log | Where-Object { $_ -match '^test at ' } | ForEach-Object { ($_ -replace '^test at .*[\\/]test[\\/]', '') -replace ':.*$', '' } | Group-Object | ForEach-Object { "$($_.Count) $($_.Name)" }
+          "## npm test on Windows (source)`n" + ($sum -join "`n") + "`n`nFailing files:`n" + ($files -join "`n") | Out-File -Append -FilePath $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-test-windows
+          path: ${{ runner.temp }}/npm-test-windows.log
