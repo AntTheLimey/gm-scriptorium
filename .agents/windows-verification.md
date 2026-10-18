@@ -1630,6 +1630,10 @@ only (`test/admin-bugs-b1.dom.test.js`); Firefox's emulation does not substitute
 
 ### C81: a stub page cannot publish a withheld sub-heading, in the real win-x64 exe
 
+**Retired at `publish-v1.17.0`: run C209 instead.** The guard this criterion tests is gone (ADR 0042's
+"Retired" addendum), so step 2's refusal can no longer happen. The pin now withholds stub sections
+itself, and C209 checks that in the exe.
+
 Bug batch B2, issue 100 (docs/decisions/0042-stub-section-guard.md). Scriptorium now replaces the
 pinned generator's `keepOnlySections` export before `lib/build.js` loads, and refuses to build when
 that replacement did not land. Verified on Linux from source, and **on Windows (2026-10-07, rc.4, Windows 11 test VM)**, using the repository's own stub-heading fixture
