@@ -6,8 +6,8 @@ A stub page publishes only the sections the GM names. It could also publish a he
 inside a withheld section, if that heading's text matched a named section, along with its search
 entry and backlinks. Until publish-v1.14.0 Scriptorium removed the withheld sections first, with a
 guard in its own layer, so the withheld parent always won. From publish-v1.17.0 the upstream
-generator does this itself, and the guard is retired (see the final addendum); a GM sees no
-change. Whether this holds inside the packaged Windows executable is not yet confirmed (C209).
+generator does this itself, and the guard is retired (see the final addendum). Stub pages change
+in both directions, as full pages already do (see the final addendum). Whether this holds inside the packaged Windows executable is not yet confirmed (C209).
 
 Status: accepted (2026-10-03); superseded by upstream at publish-v1.17.0, retired 2026-10-17 (see the final addendum). Issue 100.
 
@@ -93,8 +93,17 @@ ADR 0013 is unchanged and still fails closed.
 
 ## Retired at publish-v1.17.0 (2026-10-17)
 
-Upstream now withholds a stub page's excluded sections itself, so the guard is gone. A GM sees no
-change: the same sections publish and the same ones are withheld.
+Upstream now withholds a stub page's excluded sections itself, so the guard is gone. The heading
+collision this record was about behaves as before. Two other cases change, because the pin's strips
+now run before the cut, the order full pages already used:
+
+- **Less publishes.** A gm-only block that opens under a withheld heading and closes after a kept one
+  is withheld whole. Kept on this pin, the guard would publish its tail (see below).
+- **More publishes.** When a gm-only block, a hidden callout or a comment holds the withheld heading
+  itself, the strip removes that heading, and the text after the block falls under the heading
+  before it. If that section is kept, the text publishes, although in Obsidian it sits under
+  GM Notes. Raised upstream as
+  [AntTheLimey/gm-apprentice#447](https://github.com/AntTheLimey/gm-apprentice/issues/447).
 
 From publish-v1.17.0 (upstream #320), the pin's `keepOnlySections` and the new `stubCut` take a
 third argument, the build's `withhold` object (`lib/processor.js:474`). They run the note's own
