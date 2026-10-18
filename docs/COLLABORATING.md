@@ -383,8 +383,8 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   guess.
 - **`previews.json`** (new at `publish-v1.17.0`, `lib/previews.js`): the link-preview cards' data, one
   entry per published page with its title, kind and an excerpt, fetched same-origin by `js/previews.js`.
-  The output scan reads it as text like every other non-binary file (`test/leak-output-scan.test.js`,
-  AC-D2-04). An excerpt comes from a published page, so a name in it is on that page too.
+  The output scan reads it as text like every other non-binary file. `test/leak-output-scan.test.js`
+  proves that on a real build: a withheld name planted in its `previews.json` is found there. An excerpt comes from a published page, so a name in it is on that page too.
 - **Backlinks**: reached the same way as the search index, `lib/build.js:662`'s
   `page.publishedMarkdown` feeds `publishedSource` (`lib/processor.js:1260-1263`), which in turn feeds
   `lib/search-index.js`, `lib/backlinks.js`, `lib/recency.js`, `lib/story-spine.js` and
