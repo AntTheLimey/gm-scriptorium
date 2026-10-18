@@ -212,6 +212,8 @@ test('throws a ScriptoriumError, and writes nothing, when the donor has no </mai
 
 test('the pin\'s baseShell still emits <main class="content"> and </main> (SD-4 donor-transform assumption)', () => {
   const baseSource = fs.readFileSync(path.join(GENERATOR_DIR, 'lib', 'templates', 'base.js'), 'utf8');
+  // This reads the template's source, not a built page. The `$` in `[\s>$]` is a literal dollar on
+  // purpose: from publish-v1.17.0 the tag reads `<main class="content"${mainAttrs || ''}...>`.
   assert.match(
     baseSource,
     /<main class="content"[\s>$]/,
