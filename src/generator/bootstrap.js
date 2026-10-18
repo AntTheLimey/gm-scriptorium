@@ -168,7 +168,7 @@ function captureConsole() {
 
 /*
  * FR-DEP-11: the pinned generator emits three render-error shapes
- * (lib/build.js:1237,1045,1066). "roster" is checked before the generic
+ * (lib/build.js:1237,1274,1289). "roster" is checked before the generic
  * "page" pattern, because "ERROR rendering roster <path>:" also matches
  * "ERROR rendering (\S+):" (it would otherwise classify as a page whose
  * outputPath is literally "roster").
