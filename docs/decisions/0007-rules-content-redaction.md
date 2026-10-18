@@ -252,3 +252,8 @@ data block holds a character's own weapons and no table data. A GURPS page has n
 would have run it count as degraded in the build's report. Upstream issue
 AntTheLimey/gm-apprentice#420 asks for the rules numbers to live only in `reference.js`, which would
 retire the asset redaction.
+
+The data module itself, `lib/templates/gurps/tohit-data.js`, is not redacted, on purpose. Its own
+source holds names only (aiming aids, hit locations) and one number, the Dual-Weapon Attack default of
+skill-4. Its table rows come from `reference.js`, whose stub is already empty. The registry redacts a
+module because of the rules text it carries, and this one carries none.
