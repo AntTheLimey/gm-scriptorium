@@ -351,7 +351,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   doesn't recognise degrades to a single note that nothing was checked, rather than a per-relationship
   warning. See ADR 0037, section "What the check reads".
 - **The generator builds a campaign id from the site title**, `slugify(config.siteTitle ||
-  'campaign')` (`lib/build.js:911,865`), used to namespace anything a backend feature stores. The
+  'campaign')` (`lib/build.js:911,965`), used to namespace anything a backend feature stores. The
   admin panel's title review warns, through the pinned `slugify` facade and never a
   re-implementation of the function, when `vault.config.json`'s own `backend.statusBar` or
   `backend.inbox` is `true` and a rename would change that id. The save is never blocked.

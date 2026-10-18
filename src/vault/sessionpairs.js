@@ -16,8 +16,8 @@ const { toRelativePosix } = require('../util/paths');
  * on `adaptPage` / `scanAllNotesForPairing` independently of `computeSessionPairing`.
  */
 
-// lib/scanner.js:406,397: the note is frontmatter-gated when its raw text matches either the
-// aliases line or the session-type line. ALIASES_LINE mirrors :367's own aliases half verbatim.
+// lib/scanner.js:426,406: the note is frontmatter-gated when its raw text matches either the
+// aliases line or the session-type line. ALIASES_LINE mirrors :426's own aliases half verbatim.
 const ALIASES_LINE = /^(gm_)?aliases:/m;
 
 // lib/scanner.js:406's SESSION_TYPE_LINE, in its exact shape, built from the pin's own
