@@ -123,8 +123,7 @@ const nextEnabled = (page) => page.evaluate(() => !document.querySelector('[data
 async function toNewFolder(page) {
   await page.click('label.su-path:has(input[value="new"])');
   await page.click('.su-foot .a1-btn.primary');
-  await typeInto(page, '#su-name', 'ember-road');
-  await waitStatus(page, 'su-name-st', 'works.');
+  await typeAnswered(page, '#su-name', 'ember-road', 'su-name-st', 'works.');
   await page.click('[data-part="next"]');
   await page.waitForSelector('#su-newvault');
 }
@@ -153,6 +152,152 @@ async function pressWhileCommitLands(page, field, buttonSelector) {
   // two paint frames: every handler the answer queued has run by then
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await page.mouse.up();
+}
+
+/** From the start screen of the new-campaign path to the output question, with the suggested folder shown. */
+async function toOutputBox(page, fx) {
+  await toNewFolder(page);
+  await typeAnswered(page, '#su-newvault', path.join(fx.C, 'Ember Road'), 'su-newvault-st', 'A new folder will be created');
+  await page.click('[data-part="next"]');
+  await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
+  await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+  await page.click('[data-part="next"]');
+  await page.waitForSelector('input[name="su-sys"]');
+  await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+  await page.click('[data-part="next"]');
+  await page.waitForSelector('#su-out');
+  await page.waitForFunction(() => document.getElementById('su-out').value !== '' && document.getElementById('su-out-st').textContent.includes('Outside the vault'));
+}
+
+const isCheck = (url, field, value, commit) => {
+  const u = new URL(url);
+  return u.pathname === '/api/setup/check' && u.searchParams.get('field') === field && u.searchParams.get('commit') === commit && (value === undefined || u.searchParams.get('value') === value);
+};
+const isOutputCheck = (url, value, commit) => isCheck(url, 'output', value, commit);
+
+const ANSWER_WAIT_MS = 30000;
+
+/**
+ * Call before the keystrokes, with the value the box will hold when the typing is done. drawn()
+ * resolves once the answer for that value, and no other, has been drawn after the call: the check
+ * request for that value is sent after this call (so an answer for an earlier value, or for a typed
+ * character on its own, cannot match), its answer is read, and then the status has to show that
+ * answer under a draw it did not hold when this was called.
+ */
+async function expectOutputAnswer(page, value) {
+  const before = await page.getAttribute('#su-out-st', 'data-drawn');
+  const sent = page.waitForRequest((r) => isOutputCheck(r.url(), value, '0'), { timeout: ANSWER_WAIT_MS });
+  sent.catch(() => {}); // a request that never comes is reported by drawn(), not as an unhandled rejection
+  return {
+    drawn: async () => {
+      try {
+        const resp = await (await sent).response();
+        await resp.finished();
+        const want = JSON.stringify(await resp.json()) + '\u0000';
+        await page.waitForFunction(
+          ([w, b]) => {
+            const d = document.getElementById('su-out-st').getAttribute('data-drawn');
+            return d !== null && d !== b && d.startsWith(w);
+          },
+          [want, before],
+          { timeout: ANSWER_WAIT_MS },
+        );
+      } catch (e) {
+        if (e instanceof pw.errors.TimeoutError) assert.fail('the answer for the final value was never drawn after the confirmation was cleared, so the box could stay ticked');
+        throw e;
+      }
+    },
+  };
+}
+
+// The three folder questions mark every draw of their status (data-drawn). The name and site title
+// statuses do not, so for those a draw is told apart by when the status changed: see watchDraws.
+const MARKED_STATUS = new Set(['su-vault-st', 'su-newvault-st', 'su-out-st']);
+
+/** Starts noting, in the page, the time of every change to the status. Returns the time now. */
+async function watchDraws(page, statusId) {
+  return page.evaluate((id) => {
+    const el = document.getElementById(id);
+    if (!el.__draws) {
+      el.__draws = [];
+      new MutationObserver(() => el.__draws.push(performance.now())).observe(el, { childList: true, subtree: true, characterData: true });
+    }
+    return performance.now();
+  }, statusId);
+}
+
+/**
+ * Call before the keystrokes that send `value` to `field`, then call drawn() once they are done.
+ * The check request for that value is sent after this call, so an answer for a typed part of it, or
+ * one still on its way from before, cannot match it. drawn() reads that request's answer and then
+ * waits, for at most 30 seconds, until the status shows that answer under a draw it did not hold at
+ * the call (the name and title statuses carry no draw mark: a change to them after the request
+ * went out is that answer, because the page drops every older one). If that never happens the test
+ * fails with a message that says so. `needle` is then checked as before.
+ */
+async function expectAnswer(page, { field, statusId, value, commit = '0', needle }) {
+  await page.waitForSelector(`#${statusId}`, { state: 'attached' });
+  const marked = MARKED_STATUS.has(statusId);
+  const before = marked ? await page.getAttribute(`#${statusId}`, 'data-drawn') : null;
+  const since = marked ? 0 : await watchDraws(page, statusId);
+  const sent = page.waitForRequest((r) => isCheck(r.url(), field, value, commit), { timeout: ANSWER_WAIT_MS });
+  sent.catch(() => {}); // a request that never comes is reported by drawn(), not as an unhandled rejection
+  return {
+    drawn: async () => {
+      try {
+        const request = await sent;
+        const resp = await request.response();
+        await resp.finished();
+        if (marked) {
+          const want = JSON.stringify(await resp.json()) + '\u0000';
+          await page.waitForFunction(
+            ([id, w, b]) => {
+              const d = document.getElementById(id).getAttribute('data-drawn');
+              return d !== null && d !== b && d.startsWith(w);
+            },
+            [statusId, want, before],
+            { timeout: ANSWER_WAIT_MS },
+          );
+        } else {
+          await page.waitForFunction(
+            ([id, url, t0]) => {
+              const e = performance.getEntriesByName(url).filter((x) => x.startTime >= t0).pop();
+              return Boolean(e) && (document.getElementById(id).__draws || []).some((t) => t >= e.startTime);
+            },
+            [statusId, request.url(), since],
+            { timeout: ANSWER_WAIT_MS },
+          );
+        }
+      } catch (e) {
+        if (e instanceof pw.errors.TimeoutError) assert.fail('the answer for the value typed in full was never drawn');
+        throw e;
+      }
+      await waitStatus(page, statusId, needle);
+    },
+  };
+}
+
+const FIELD_OF = { '#su-name': 'name', '#su-vault': 'vault', '#su-newvault': 'newVault', '#su-out': 'output', '#su-title': 'starterTitle' };
+
+/** Types `text` into the box and waits for the status under it to show `needle`. */
+async function typeAnswered(page, selector, text, statusId, needle) {
+  const answered = await expectAnswer(page, { field: FIELD_OF[selector], statusId, value: text, needle });
+  await typeInto(page, selector, text);
+  await answered.drawn();
+}
+
+/**
+ * The adversary for the forcing tests. Types `prefix` into the box and waits until the answer for
+ * exactly that prefix is on the screen, so a test can go on typing with that draw showing. It does not
+ * use expectAnswer: its wait is made here, from the request and the page.
+ */
+async function typePrefixAnswered(page, selector, prefix, field, statusId) {
+  const sent = page.waitForRequest((r) => isCheck(r.url(), field, prefix, '0'));
+  await typeInto(page, selector, prefix);
+  const resp = await (await sent).response();
+  await resp.finished();
+  const want = JSON.stringify(await resp.json()) + '\u0000';
+  await page.waitForFunction(([id, w]) => (document.getElementById(id).getAttribute('data-drawn') || '').startsWith(w), [statusId, want]);
 }
 
 for (const browserName of ['chromium', 'firefox']) {
@@ -210,15 +355,12 @@ for (const browserName of ['chromium', 'firefox']) {
     await t.test('the vault question\u2019s two dead ends offer the way across, and the folder goes with you', async () => {
       const page = await open(1280);
       await page.click('.su-foot .a1-btn.primary');
-      await typeInto(page, '#su-name', 'ember-road');
-      await waitStatus(page, 'su-name-st', 'works.');
+      await typeAnswered(page, '#su-name', 'ember-road', 'su-name-st', 'works.');
       await page.click('[data-part="next"]');
-      await typeInto(page, '#su-vault', fx.notEmpty);
-      await waitStatus(page, 'su-vault-st', 'isn\u2019t a vault');
+      await typeAnswered(page, '#su-vault', fx.notEmpty, 'su-vault-st', 'isn\u2019t a vault');
       assert.ok(await page.$('#su-vault-st button:has-text("Start a new campaign here instead")'));
       const missing = path.join(fx.C, 'Ember Road');
-      await typeInto(page, '#su-vault', missing);
-      await waitStatus(page, 'su-vault-st', 'Can\u2019t find that folder');
+      await typeAnswered(page, '#su-vault', missing, 'su-vault-st', 'Can\u2019t find that folder');
       assert.ok(await page.$('#su-vault-st button:has-text("Check again")'));
       await page.click('#su-vault-st button:has-text("Start a new campaign here instead")');
       await page.waitForSelector('#su-newvault');
@@ -239,12 +381,10 @@ for (const browserName of ['chromium', 'firefox']) {
       await t.test(`the way across is not lost when the committed check lands mid-click (${dead})`, async () => {
         const page = await open(1280);
         await page.click('.su-foot .a1-btn.primary');
-        await typeInto(page, '#su-name', 'ember-road');
-        await waitStatus(page, 'su-name-st', 'works.');
+        await typeAnswered(page, '#su-name', 'ember-road', 'su-name-st', 'works.');
         await page.click('[data-part="next"]');
         const target = dead === 'missing' ? path.join(fx.C, 'Ember Road') : fx.notEmpty;
-        await typeInto(page, '#su-vault', target);
-        await waitStatus(page, 'su-vault-st', dead === 'missing' ? 'Can’t find that folder' : 'isn’t a vault');
+        await typeAnswered(page, '#su-vault', target, 'su-vault-st', dead === 'missing' ? 'Can’t find that folder' : 'isn’t a vault');
         let heldOnce = false;
         const answered = new Promise((resolve) => {
           page.route('**/api/setup/check?*commit=1*', async (route) => {
@@ -276,12 +416,10 @@ for (const browserName of ['chromium', 'firefox']) {
     await t.test('a vault answer that lands after the way across does not disable Continue', async () => {
       const page = await open(1280);
       await page.click('.su-foot .a1-btn.primary');
-      await typeInto(page, '#su-name', 'ember-road');
-      await waitStatus(page, 'su-name-st', 'works.');
+      await typeAnswered(page, '#su-name', 'ember-road', 'su-name-st', 'works.');
       await page.click('[data-part="next"]');
       const missing = path.join(fx.C, 'Ember Road');
-      await typeInto(page, '#su-vault', missing);
-      await waitStatus(page, 'su-vault-st', 'Can\u2019t find that folder');
+      await typeAnswered(page, '#su-vault', missing, 'su-vault-st', 'Can\u2019t find that folder');
       let heldOnce = false;
       const answered = new Promise((resolve) => {
         page.route('**/api/setup/check?field=vault*commit=1*', async (route) => {
@@ -308,8 +446,26 @@ for (const browserName of ['chromium', 'firefox']) {
     await t.test('the new vault question: the way back to "have a vault" is not lost when the committed check lands mid-click', async () => {
       const page = await open(1280);
       await toNewFolder(page);
-      await typeInto(page, '#su-newvault', path.join(fx.host, 'Ember Road'));
-      await waitStatus(page, 'su-newvault-st', 'inside a vault');
+      await typeAnswered(page, '#su-newvault', path.join(fx.host, 'Ember Road'), 'su-newvault-st', 'inside a vault');
+      await pressWhileCommitLands(page, 'newVault', '#su-newvault-st button:has-text("as my vault")');
+      await page.waitForSelector('#su-vault', { timeout: 5000 });
+      assert.equal(await page.inputValue('#su-vault'), fx.host);
+      await page.context().close();
+    });
+
+    // The same press, with a typed part of the folder answered first. That answer draws the same
+    // button, so a wait that is satisfied by it lets the press start while the answer for the whole
+    // folder is still on its way, and that answer then redraws the button under the mouse.
+    await t.test('the new vault question: the way back to "have a vault" is not lost when the committed check lands mid-click, after a typed part of the folder was answered first', async () => {
+      const page = await open(1280);
+      await toNewFolder(page);
+      const inside = path.join(fx.host, 'Ember Road');
+      const prefix = path.join(fx.host, 'Ember Ro');
+      const whole = await expectAnswer(page, { field: 'newVault', statusId: 'su-newvault-st', value: inside, needle: 'inside a vault' });
+      await typePrefixAnswered(page, '#su-newvault', prefix, 'newVault', 'su-newvault-st');
+      assert.ok(await page.$('#su-newvault-st button:has-text("as my vault")'), 'the answer for the typed part offers the same button');
+      await page.keyboard.type(inside.slice(prefix.length));
+      await whole.drawn();
       await pressWhileCommitLands(page, 'newVault', '#su-newvault-st button:has-text("as my vault")');
       await page.waitForSelector('#su-vault', { timeout: 5000 });
       assert.equal(await page.inputValue('#su-vault'), fx.host);
@@ -319,8 +475,7 @@ for (const browserName of ['chromium', 'firefox']) {
     await t.test('the output question: "Use the suggested folder instead" is not lost when the committed check lands mid-click', async () => {
       const page = await open(1280);
       await toNewFolder(page);
-      await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
-      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      await typeAnswered(page, '#su-newvault', path.join(fx.C, 'Ember Road'), 'su-newvault-st', 'A new folder will be created');
       await page.click('[data-part="next"]');
       await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
       await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
@@ -330,11 +485,11 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.click('[data-part="next"]');
       await page.waitForSelector('#su-out');
       await page.waitForFunction(() => document.getElementById('su-out').value !== '' && document.getElementById('su-out-st').textContent.includes('Outside the vault'));
-      await typeInto(page, '#su-out', fx.notEmpty);
-      await waitStatus(page, 'su-out-st', 'already has other files');
+      await typeAnswered(page, '#su-out', fx.notEmpty, 'su-out-st', 'already has other files');
+      const suggested = await expectAnswer(page, { field: 'output', statusId: 'su-out-st', value: path.join(fx.C, 'ember-road-site'), needle: 'Outside the vault' });
       await pressWhileCommitLands(page, 'output', '#su-out-st button:has-text("Use the suggested folder instead")');
       await page.waitForFunction(() => document.getElementById('su-out').value.endsWith('ember-road-site'), null, { timeout: 5000 });
-      await waitStatus(page, 'su-out-st', 'Outside the vault');
+      await suggested.drawn();
       await page.context().close();
     });
 
@@ -344,8 +499,7 @@ for (const browserName of ['chromium', 'firefox']) {
     await t.test('the output question: an unchanged answer after the confirmation is cleared does not leave the box ticked', async () => {
       const page = await open(1280);
       await toNewFolder(page);
-      await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
-      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      await typeAnswered(page, '#su-newvault', path.join(fx.C, 'Ember Road'), 'su-newvault-st', 'A new folder will be created');
       await page.click('[data-part="next"]');
       await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
       await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
@@ -355,20 +509,80 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.click('[data-part="next"]');
       await page.waitForSelector('#su-out');
       await page.waitForFunction(() => document.getElementById('su-out').value !== '' && document.getElementById('su-out-st').textContent.includes('Outside the vault'));
-      await typeInto(page, '#su-out', fx.notEmpty);
-      await waitStatus(page, 'su-out-st', 'already has other files');
+      await typeAnswered(page, '#su-out', fx.notEmpty, 'su-out-st', 'already has other files');
       // pressed with the box's committed answer landing before the release, so the sequence is fixed
       await pressWhileCommitLands(page, 'output', '#su-outok');
       assert.equal(await page.isChecked('#su-outok'), true);
       assert.equal(await nextEnabled(page), true, 'ticking the box lets you continue');
-      const asked = page.waitForResponse((r) => r.url().includes('field=output') && r.url().includes('commit=0'));
+      const final = await expectOutputAnswer(page, fx.notEmpty);
       await page.focus('#su-out');
       await page.keyboard.type('x');
       await page.keyboard.press('Backspace');
       assert.equal(await page.inputValue('#su-out'), fx.notEmpty);
-      await (await asked).finished();
-      // two paint frames: every handler the answer queued has run by then
-      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      await final.drawn();
+      assert.equal(await nextEnabled(page), false, 'the confirmation was cleared, so Continue is off');
+      assert.equal(await page.isChecked('#su-outok'), false, 'and the box shows it');
+      await page.context().close();
+    });
+
+    // The same read, with the typed character checked on its own: the check for the character alone
+    // comes back first, and it is not the answer for the folder the box ends up holding.
+    await t.test('the output question: the box is read after the answer for the final value, when the typed character is checked on its own', async () => {
+      const page = await open(1280);
+      await toOutputBox(page, fx);
+      await typeAnswered(page, '#su-out', fx.notEmpty, 'su-out-st', 'already has other files');
+      await pressWhileCommitLands(page, 'output', '#su-outok');
+      assert.equal(await page.isChecked('#su-outok'), true);
+      assert.equal(await nextEnabled(page), true, 'ticking the box lets you continue');
+      const final = await expectOutputAnswer(page, fx.notEmpty);
+      const typedAlone = page.waitForRequest((r) => isOutputCheck(r.url(), fx.notEmpty + 'x', '0'));
+      await page.focus('#su-out');
+      await page.keyboard.type('x');
+      await typedAlone;
+      await page.keyboard.press('Backspace');
+      assert.equal(await page.inputValue('#su-out'), fx.notEmpty);
+      await final.drawn();
+      assert.equal(await nextEnabled(page), false, 'the confirmation was cleared, so Continue is off');
+      assert.equal(await page.isChecked('#su-outok'), false, 'and the box shows it');
+      await page.context().close();
+    });
+
+    // The same read, with an answer for an earlier value still on its way when the box is ticked and
+    // the last keys are typed. It is held by the test until the final value is being waited for.
+    await t.test('the output question: the box is read after the answer for the final value, when an earlier answer arrives late', async () => {
+      const page = await open(1280);
+      await toOutputBox(page, fx);
+      const prefix = fx.notEmpty.slice(0, -1);
+      let heldOnce = false;
+      let seen;
+      const prefixSeen = new Promise((resolve) => {
+        seen = resolve;
+      });
+      let release;
+      await page.route((url) => isOutputCheck(url.href, prefix, '0'), async (route) => {
+        if (heldOnce) return route.continue();
+        heldOnce = true;
+        const resp = await route.fetch();
+        release = () => route.fulfill({ response: resp });
+        seen();
+      });
+      await typeInto(page, '#su-out', prefix);
+      await prefixSeen;
+      const typed = await expectAnswer(page, { field: 'output', statusId: 'su-out-st', value: fx.notEmpty, needle: 'already has other files' });
+      await page.keyboard.type(fx.notEmpty.slice(-1));
+      await typed.drawn();
+      await pressWhileCommitLands(page, 'output', '#su-outok');
+      assert.equal(await page.isChecked('#su-outok'), true);
+      assert.equal(await nextEnabled(page), true, 'ticking the box lets you continue');
+      const final = await expectOutputAnswer(page, fx.notEmpty);
+      const late = page.waitForResponse((r) => isOutputCheck(r.url(), prefix, '0'));
+      release();
+      await (await late).finished();
+      await page.focus('#su-out');
+      await page.keyboard.type('x');
+      await page.keyboard.press('Backspace');
+      assert.equal(await page.inputValue('#su-out'), fx.notEmpty);
+      await final.drawn();
       assert.equal(await nextEnabled(page), false, 'the confirmation was cleared, so Continue is off');
       assert.equal(await page.isChecked('#su-outok'), false, 'and the box shows it');
       await page.context().close();
@@ -379,8 +593,7 @@ for (const browserName of ['chromium', 'firefox']) {
     await t.test('the output question: after ticking the box, "Use the suggested folder instead" is not lost mid-click', async () => {
       const page = await open(1280);
       await toNewFolder(page);
-      await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
-      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      await typeAnswered(page, '#su-newvault', path.join(fx.C, 'Ember Road'), 'su-newvault-st', 'A new folder will be created');
       await page.click('[data-part="next"]');
       await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
       await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
@@ -390,8 +603,7 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.click('[data-part="next"]');
       await page.waitForSelector('#su-out');
       await page.waitForFunction(() => document.getElementById('su-out').value !== '' && document.getElementById('su-out-st').textContent.includes('Outside the vault'));
-      await typeInto(page, '#su-out', fx.notEmpty);
-      await waitStatus(page, 'su-out-st', 'already has other files');
+      await typeAnswered(page, '#su-out', fx.notEmpty, 'su-out-st', 'already has other files');
       // pressed with the box's committed answer landing before the release, so the sequence is fixed
       await pressWhileCommitLands(page, 'output', '#su-outok');
       assert.equal(await page.isChecked('#su-outok'), true);
@@ -406,8 +618,7 @@ for (const browserName of ['chromium', 'firefox']) {
       await toNewFolder(page);
       const st = () => statusText(page, 'su-newvault-st');
       const check = async (value, needle) => {
-        await typeInto(page, '#su-newvault', value);
-        await waitStatus(page, 'su-newvault-st', needle);
+        await typeAnswered(page, '#su-newvault', value, 'su-newvault-st', needle);
         return st();
       };
 
@@ -460,8 +671,7 @@ for (const browserName of ['chromium', 'firefox']) {
       assert.match(text, /If it adds a desktop\.ini, setup leaves it alone\./);
       assert.equal(await nextEnabled(page), true);
 
-      await typeInto(page, '#su-newvault', '//fileserver/campaigns/Ember Road');
-      await waitStatus(page, 'su-newvault-st', 'looks like a network path');
+      await typeAnswered(page, '#su-newvault', '//fileserver/campaigns/Ember Road', 'su-newvault-st', 'looks like a network path');
       assert.equal(await nextEnabled(page), true);
       await page.keyboard.press('Tab');
       await waitStatus(page, 'su-newvault-st', 'On a network share');
@@ -474,13 +684,31 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.context().close();
     });
 
+    // The wait for the folder typed in full must not be satisfied by the answer for a part of it: that
+    // answer also says "Not inside a vault", which contains the words the test waits for.
+    await t.test('every state of the new vault folder question is read after the answer for the folder typed in full', async () => {
+      const page = await open(1280);
+      await toNewFolder(page);
+      const inside = path.join(fx.host, 'Ember Road');
+      const prefix = path.join(fx.C, 'Long Lea');
+      const whole = await expectAnswer(page, { field: 'newVault', statusId: 'su-newvault-st', value: inside, needle: 'inside a vault' });
+      await typePrefixAnswered(page, '#su-newvault', prefix, 'newVault', 'su-newvault-st');
+      assert.match(await statusText(page, 'su-newvault-st'), /^A new folder will be created.*Not inside a vault/, 'the answer for the typed part is on the screen');
+      await page.keyboard.type(inside.slice(prefix.length));
+      await whole.drawn();
+      const text = await statusText(page, 'su-newvault-st');
+      assert.match(text, /Inside an existing vault/);
+      assert.match(text, new RegExp(`it is inside the vault at ${fx.host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+      assert.equal(await nextEnabled(page), false);
+      await page.context().close();
+    });
+
     await t.test('the new vault question has a Browse button that fills the field and runs the same check', async () => {
       const page = await open(1280);
       await toNewFolder(page);
       assert.ok(await page.$('.su-row button:has-text("Browse")'));
       assert.equal(await page.getAttribute('.su-row button:has-text("Browse")', 'aria-expanded'), 'false');
-      await typeInto(page, '#su-newvault', fx.empty);
-      await waitStatus(page, 'su-newvault-st', 'Folder is empty');
+      await typeAnswered(page, '#su-newvault', fx.empty, 'su-newvault-st', 'Folder is empty');
       await page.click('.su-row button:has-text("Browse")');
       await page.waitForSelector('.pk .pk-opt, .pk .pk-path');
       assert.equal(await page.textContent('.pk-title'), 'Choose the new vault folder');
@@ -497,19 +725,16 @@ for (const browserName of ['chromium', 'firefox']) {
     await t.test('the game system question: four radios with their ids, a request link, and the keyboard', async () => {
       const page = await open(1280);
       await toNewFolder(page);
-      await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
-      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      await typeAnswered(page, '#su-newvault', path.join(fx.C, 'Ember Road'), 'su-newvault-st', 'A new folder will be created');
       await page.click('[data-part="next"]');
       await page.waitForSelector('#su-title');
       await page.waitForFunction(() => document.getElementById('su-title').value !== '');
       assert.equal(await page.inputValue('#su-title'), 'ember-road', 'the title starts as the campaign name');
       assert.equal(await page.textContent('.a1-hint'), 'Also used as the campaign name inside the new vault.');
-      await typeInto(page, '#su-title', 'Say "hi"');
-      await waitStatus(page, 'su-title-st', 'That title can\u2019t be used.');
+      await typeAnswered(page, '#su-title', 'Say "hi"', 'su-title-st', 'That title can\u2019t be used.');
       assert.match(await statusText(page, 'su-title-st'), /site title can't be written into the new vault's pages exactly as typed; leave out double quotes and backslashes/);
       assert.equal(await nextEnabled(page), false);
-      await typeInto(page, '#su-title', 'The Ember Road');
-      await waitStatus(page, 'su-title-st', 'Players will see');
+      await typeAnswered(page, '#su-title', 'The Ember Road', 'su-title-st', 'Players will see');
       await page.click('[data-part="next"]');
       await h1Focused(page, 'Which game system?');
       const rows = await page.$$eval('.su-opt', (els) => els.map((e) => [e.querySelector('.nm').textContent, e.querySelector('.id').textContent, e.querySelector('input').checked]));
@@ -548,8 +773,7 @@ for (const browserName of ['chromium', 'firefox']) {
         await page.waitForSelector('#su-newvault');
       };
       const setVault = async (dir) => {
-        await typeInto(page, '#su-newvault', dir);
-        await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+        await typeAnswered(page, '#su-newvault', dir, 'su-newvault-st', 'A new folder will be created');
       };
       const first = path.join(fx.C, 'Ember Road');
       const second = path.join(fx.H, 'OneDrive', 'Campaigns', 'Second Road');
@@ -561,8 +785,7 @@ for (const browserName of ['chromium', 'firefox']) {
       await goOutput();
       assert.equal(await page.inputValue('#su-out'), path.join(fx.H, 'OneDrive', 'Campaigns', 'ember-road-site'), 'an untouched suggestion follows the vault');
       const mine = path.join(fx.H, 'my-own-site');
-      await typeInto(page, '#su-out', mine);
-      await waitStatus(page, 'su-out-st', 'Outside the vault');
+      await typeAnswered(page, '#su-out', mine, 'su-out-st', 'Outside the vault');
       await backToVault();
       await setVault(first);
       await goOutput();
@@ -577,8 +800,7 @@ for (const browserName of ['chromium', 'firefox']) {
         await page.click('label.su-path:has(input[value="new"])');
         await clean('start, new campaign');
         await page.click('.su-foot .a1-btn.primary');
-        await typeInto(page, '#su-name', 'ember-road');
-        await waitStatus(page, 'su-name-st', 'works.');
+        await typeAnswered(page, '#su-name', 'ember-road', 'su-name-st', 'works.');
         await page.click('[data-part="next"]');
         await page.waitForSelector('#su-newvault');
         const states = [
@@ -592,27 +814,22 @@ for (const browserName of ['chromium', 'firefox']) {
           [path.join(fx.H, 'OneDrive', 'Campaigns', 'Ember Road'), 'syncs with OneDrive', 'OneDrive'],
         ];
         for (const [value, needle, what] of states) {
-          await typeInto(page, '#su-newvault', value);
-          await waitStatus(page, 'su-newvault-st', needle);
+          await typeAnswered(page, '#su-newvault', value, 'su-newvault-st', needle);
           await clean(`new vault folder, ${what}`);
         }
-        await typeInto(page, '#su-newvault', '//fileserver/campaigns/Ember Road');
-        await waitStatus(page, 'su-newvault-st', 'looks like a network path');
+        await typeAnswered(page, '#su-newvault', '//fileserver/campaigns/Ember Road', 'su-newvault-st', 'looks like a network path');
         await clean('new vault folder, typing a share');
         await page.keyboard.press('Tab');
         await waitStatus(page, 'su-newvault-st', 'On a network share');
         await clean('new vault folder, share');
-        await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
-        await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+        await typeAnswered(page, '#su-newvault', path.join(fx.C, 'Ember Road'), 'su-newvault-st', 'A new folder will be created');
         await page.click('[data-part="next"]');
         await page.waitForSelector('#su-title');
         await page.waitForFunction(() => document.getElementById('su-title').value !== '');
         await clean('site title, new campaign');
-        await typeInto(page, '#su-title', 'Say "hi"');
-        await waitStatus(page, 'su-title-st', 'That title can\u2019t be used.');
+        await typeAnswered(page, '#su-title', 'Say "hi"', 'su-title-st', 'That title can\u2019t be used.');
         await clean('site title, refused');
-        await typeInto(page, '#su-title', 'The Ember Road');
-        await waitStatus(page, 'su-title-st', 'Players will see');
+        await typeAnswered(page, '#su-title', 'The Ember Road', 'su-title-st', 'Players will see');
         await page.click('[data-part="next"]');
         await page.waitForSelector('input[name="su-sys"]');
         await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
@@ -656,20 +873,21 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.keyboard.press('Enter');
       await h1Focused(page, 'What should we call this campaign?');
       await tabTo(page, '#su-name');
+      const named = await expectAnswer(page, { field: 'name', statusId: 'su-name-st', value: 'ember-road', needle: 'works.' });
       await page.keyboard.type('ember-road');
-      await waitStatus(page, 'su-name-st', 'works.');
+      await named.drawn();
       await tabTo(page, '[data-part="next"]');
       await page.keyboard.press('Enter');
       await h1Focused(page, 'Where should the new vault go?');
       await tabTo(page, '#su-newvault');
+      const placed = await expectAnswer(page, { field: 'newVault', statusId: 'su-newvault-st', value: vault, needle: 'Folders above it will be created first' });
       await page.keyboard.type(vault);
-      await waitStatus(page, 'su-newvault-st', 'Folders above it will be created first');
+      await placed.drawn();
       await tabTo(page, '[data-part="next"]');
       await page.keyboard.press('Enter');
       await h1Focused(page, 'What\u2019s the site called?');
       await page.waitForFunction(() => document.getElementById('su-title') && document.getElementById('su-title').value === 'ember-road');
-      await typeInto(page, '#su-title', 'The Ember Road');
-      await waitStatus(page, 'su-title-st', 'Players will see The Ember Road');
+      await typeAnswered(page, '#su-title', 'The Ember Road', 'su-title-st', 'Players will see The Ember Road');
       await tabTo(page, '[data-part="next"]');
       await page.keyboard.press('Enter');
       await h1Focused(page, 'Which game system?');
