@@ -227,7 +227,7 @@ recap, badges, prev/next and Saga, none of which this repository re-renders).
 From `publish-v1.18.0` the generator no longer draws the relationship graph, the sidebar or the
 relationship list. It draws one Connections section per page, holding the same content as data, with
 relationships read in both directions. The lane now replaces that section in place, and a GM sees the
-same lane as before, with three differences:
+same lane as before, with four differences:
 
 - **Named-by items appear wherever they should.** The lane always had a "Named by" group, but the graph
   only put a page on it when that page also linked back in its text, so it was nearly always empty. The
@@ -237,6 +237,12 @@ same lane as before, with three differences:
 - **Kinship reads "family".** The generator groups every kinship type under one label, so a relationship
   such as "ancestor of" shows as "family" on the page that declares it, and as "family of" before the
   other page's name on that page. A relationship with no type reads "connected to" there.
+- **One relationship per other page.** The generator lists another page once, under the first
+  relationship that names it, and drops the type words of any later one. A note that calls Tilda both
+  "ally" and "rival" shows only "ally". The old sidebar listed both. Nothing hidden is shown; the page
+  shows less. `publish-v1.46.0` lists each relationship under its own heading, so this goes at the repin
+  that reaches it. That repin must also teach the lane to keep both labels for one page, because the lane
+  reads each page once and today keeps the first label it meets.
 
 How it works: the items, their relationship words, their lines and the mentions all come from the
 section's data block, which the generator has already reduced for the reader. Only one thing comes from
