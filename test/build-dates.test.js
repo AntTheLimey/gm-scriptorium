@@ -191,6 +191,41 @@ test('ISO dates: idempotent, and a date with no page is never looked up', () => 
   assert.equal(transformIsoDates('<span class="metadata-badge">2031-02-12</span>', 'index.html', pages), null);
 });
 
+test('ISO dates: a session hub\'s "In-game:" line prints "D Month YYYY", for one date and for a range', () => {
+  const pages = isoPages([
+    ['sessions/s1.html', { type: 'session', in_game_date: ymd(1921, 3, 2) }],
+    ['sessions/s2.html', { type: 'session', in_game_date: [ymd(1921, 3, 2), ymd(1921, 3, 5)] }],
+    ['sessions/s3.html', { type: 'session', in_game_date: '1921-03-02' }], // quoted in YAML: a string
+  ]);
+  const line = (text) => `<p class="session-facts"><span class="session-in-game-date">In-game: ${text}</span></p>`;
+  assert.equal(transformIsoDates(line('1921-03-02'), 'sessions/s1.html', pages), line('2 March 1921'));
+  assert.equal(transformIsoDates(line('1921-03-02 – 1921-03-05'), 'sessions/s2.html', pages), line('2 March 1921 – 5 March 1921'));
+  assert.equal(transformIsoDates(line('1921-03-02'), 'sessions/s3.html', pages), null, 'a date typed as text prints as typed');
+  // A range only half of which is one of the page's YAML dates is left whole, not half rewritten.
+  assert.equal(transformIsoDates(line('1921-03-02 – 1921-03-09'), 'sessions/s2.html', pages), null);
+});
+
+const { transformPreviewDates } = require('../src/build/dates');
+
+test('preview cards: a field holding the page\'s own YAML date prints "D Month YYYY", and nothing else changes', () => {
+  const pages = isoPages([
+    ['sessions/s1.html', { type: 'session', play_date: ymd(2026, 1, 1), in_game_date: [ymd(1921, 3, 2), ymd(1921, 3, 5)] }],
+    // play_date quoted in YAML (a string); the page has another, real YAML date, so it is looked up.
+    ['sessions/s2.html', { type: 'session', play_date: '2026-01-08', in_game_date: ymd(1921, 3, 9) }],
+  ]);
+  const json = JSON.stringify({
+    'sessions/s1.html': { t: 'Session 1', k: 'Session', f: [['Session', '1'], ['In-game date', '1921-03-02 – 1921-03-05'], ['Played', '2026-01-01']], x: 'On 2026-01-01 they met.' },
+    'sessions/s2.html': { t: 'Session 2', k: 'Session', f: [['Played', '2026-01-08']] },
+  });
+  const want = JSON.stringify({
+    'sessions/s1.html': { t: 'Session 1', k: 'Session', f: [['Session', '1'], ['In-game date', '2 March 1921 – 5 March 1921'], ['Played', '1 January 2026']], x: 'On 2026-01-01 they met.' },
+    'sessions/s2.html': { t: 'Session 2', k: 'Session', f: [['Played', '2026-01-08']] },
+  });
+  assert.equal(transformPreviewDates(json, pages), want);
+  assert.equal(transformPreviewDates(want, pages), null, 'idempotent');
+  assert.equal(transformPreviewDates(JSON.stringify({ 'sessions/s2.html': { f: [['Played', '2026-01-08']] } }), pages), null);
+});
+
 // Real builds. examples/the-long-lease writes play_date as YAML dates; on main (publish-v1.14.0) its
 // session badges read "11 July 2026", "25 July 2026" and "8 August 2026", and they must still.
 const { runAtomicBuild } = require('../src/build/run');
@@ -243,20 +278,35 @@ test('real build with YAML dates everywhere: no page prints one of them as YYYY-
       }
     })(vault);
     assert.ok(dated > 20, `positive control: only ${dated} notes dated`);
+    // A published Wrap-Up pair: the pin replaces Session 1's hub body and prints its in_game_date on an
+    // "In-game:" line, here as a range, a place the-long-lease alone never reaches.
+    const hub = path.join(vault, 'Sessions', 'Session 01 - A Dragon at the Fair.md');
+    fs.writeFileSync(hub, fs.readFileSync(hub, 'utf8')
+      .replace('in_game_date: 2031-02-12\n', 'in_game_date: [2031-02-12, 2031-06-16]\ndocuments:\n  wrap_up: "[[Session 01 Wrap-Up]]"\n'));
+    fs.writeFileSync(path.join(vault, 'Sessions', 'Session 01 Wrap-Up.md'),
+      '---\ntype: session_wrap\ntitle: Session 1 Wrap-Up\nsession: "[[Session 01 - A Dragon at the Fair]]"\nplay_date: 2031-05-15\n---\n\n# Session 1 Wrap-Up\n\nThe fair went badly for the dragon.\n');
+    const manifest = path.join(vault, '_meta', 'publish-manifest.md');
+    fs.writeFileSync(manifest, fs.readFileSync(manifest, 'utf8')
+      .replace('- [x] Sessions/Session 01 - A Dragon at the Fair.md\n', '- [x] Sessions/Session 01 - A Dragon at the Fair.md\n- [x] Sessions/Session 01 Wrap-Up.md\n'));
     const out = buildVault(vault, path.join(vault, '_meta', 'scriptorium', 'vault.config.json'), dir);
     const leftovers = [];
     let longForms = 0;
+    let inGameLines = 0;
     (function walk(d) {
       for (const e of fs.readdirSync(d, { withFileTypes: true })) {
         const p = path.join(d, e.name);
         if (e.isDirectory()) { walk(p); continue; }
-        if (!e.name.endsWith('.html')) continue;
-        const text = fs.readFileSync(p, 'utf8').replace(/<script\b[\s\S]*?<\/script>/g, '').replace(/<[^>]*>/g, ' ');
-        for (const iso of Object.values(DATED)) if (text.includes(iso)) leftovers.push(`${path.relative(out, p)}: ${iso}`);
-        longForms += (text.match(/\b(11 January|12 February|13 March|14 April|15 May) 2031\b/g) || []).length;
+        // The preview cards (previews.json) print the same fields, so they are read too.
+        if (!e.name.endsWith('.html') && e.name !== 'previews.json') continue;
+        const raw = fs.readFileSync(p, 'utf8');
+        const text = e.name.endsWith('.html') ? raw.replace(/<script\b[\s\S]*?<\/script>/g, '').replace(/<[^>]*>/g, ' ') : raw;
+        for (const iso of [...Object.values(DATED), '2031-06-16']) if (text.includes(iso)) leftovers.push(`${path.relative(out, p)}: ${iso}`);
+        longForms += (text.match(/\b(11 January|12 February|13 March|14 April|15 May|16 June) 2031\b/g) || []).length;
+        if (/In-game: 12 February 2031 – 16 June 2031/.test(text)) inGameLines++;
       }
     })(out);
     assert.deepEqual(leftovers, []);
     assert.ok(longForms > 0, 'positive control: no date printed at all');
+    assert.equal(inGameLines, 1, 'positive control: the Wrap-Up pair\'s "In-game:" line was not built');
   });
 });

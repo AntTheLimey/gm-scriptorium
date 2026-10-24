@@ -20,10 +20,13 @@ const path = require('path');
  * From publish-v1.16.0 the pin prints a YAML date as "2026-07-11" (lib/processor.js dateText) in
  * most places, and Date.toString() text survives only where a template still prints String(date)
  * (the landing page's "Last Played"). transformIsoDates puts the "D Month YYYY" form back in the
- * three places the pin prints a YAML date as ISO: a metadata badge, a header line
- * (`<span class="label">Date</span> ...`) and a timeline entry. It rewrites the text only when the
- * page it belongs to (the page itself, or the event a timeline entry links to) has a YAML date that
- * the pin's own dateText prints as exactly that text, so a date the GM typed as text prints as
+ * four places the pin prints a YAML date as ISO in a page: a metadata badge, a header line
+ * (`<span class="label">Date</span> ...`), a timeline entry and a session hub's "In-game:" line
+ * (lib/templates/session.js, printed only when a published Wrap-Up replaces the hub's body; a
+ * list prints as a range joined by " – "). transformPreviewDates does the same for the preview
+ * cards' fields in previews.json, which print the same values. Either rewrites the text only when
+ * the page it belongs to (the page itself, or the event a timeline entry links to) has a YAML date
+ * that the pin's own dateText prints as exactly that text, so a date the GM typed as text prints as
  * typed, as it always did. See docs/decisions/0016-book-leaves-and-page-motion.md's last addendum.
  */
 
@@ -70,10 +73,14 @@ function transformDates(html) {
 }
 
 const ISO_RE = '(\\d{4})-(\\d{2})-(\\d{2})';
-// The three places the pin prints a YAML date as ISO, each with the date's text as groups 2-4.
+// The separator the pin puts between the dates of a list (lib/templates/session.js inGameDateText).
+const RANGE_SEP = ' – ';
+// The places the pin prints a YAML date as ISO, each but the last with the date's text as groups 2-4.
 const ISO_BADGE_RE = new RegExp(`(<span class="metadata-badge"[^>]*>)${ISO_RE}(</span>)`, 'g');
 const ISO_HEADER_RE = new RegExp(`(<span class="label">[^<]*</span> )${ISO_RE}(</span>)`, 'g');
 const ISO_TIMELINE_RE = new RegExp(`(<span class="timeline-date">)${ISO_RE}(</span>\\s*<a href="([^"]*)")`, 'g');
+// A session hub's "In-game:" line: one date, or a list's dates joined by RANGE_SEP, as group 2.
+const ISO_INGAME_RE = new RegExp(`(<span class="session-in-game-date">In-game: )(\\d{4}-\\d{2}-\\d{2}(?:${RANGE_SEP}\\d{4}-\\d{2}-\\d{2})*)(</span>)`, 'g');
 
 /**
  * outputPath -> the text the pin prints for each YAML date in that page's frontmatter (top-level
@@ -104,6 +111,26 @@ function isoDatesByPath(pages) {
 const longForm = (y, m, d) => `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
 
 /**
+ * `text` with each of its dates in "D Month YYYY", when it is one ISO date or a range of them and
+ * every one is in `dates`; otherwise null. A range is rewritten whole or not at all.
+ *
+ * @param {string} text
+ * @param {Set<string> | undefined} dates
+ * @returns {string | null}
+ */
+function longFormAll(text, dates) {
+  if (!dates) return null;
+  const parts = text.split(RANGE_SEP);
+  const out = [];
+  for (const part of parts) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(part);
+    if (!m || !dates.has(part) || !MONTHS[Number(m[2]) - 1]) return null;
+    out.push(longForm(m[1], m[2], m[3]));
+  }
+  return out.join(RANGE_SEP);
+}
+
+/**
  * The pin's ISO dates in one page, as "D Month YYYY", or null if nothing changed.
  *
  * @param {string} html
@@ -125,14 +152,48 @@ function transformIsoDates(html, pagePath, pages) {
   };
   let out = html.replace(ISO_BADGE_RE, swap(own)).replace(ISO_HEADER_RE, swap(own));
   out = out.replace(ISO_TIMELINE_RE, (match, open, y, m, d, close, href) => swap(byPath.get(resolveHref(pagePath, href)))(match, open, y, m, d, close));
+  out = out.replace(ISO_INGAME_RE, (match, open, text, close) => {
+    const long = longFormAll(text, own);
+    if (long === null) return match;
+    changed = true;
+    return `${open}${long}${close}`;
+  });
   return changed ? out : null;
+}
+
+/**
+ * previews.json (the pin writes it with JSON.stringify: page output path -> card, whose `f` is a
+ * list of [label, value] fields) with each field value that is one of that page's YAML dates, or a
+ * range of them, in "D Month YYYY"; or null if nothing changed.
+ *
+ * @param {string} json
+ * @param {{ outputPath: string, frontmatter: object }[] | Map<string, Set<string>>} pages
+ * @returns {string | null}
+ */
+function transformPreviewDates(json, pages) {
+  const byPath = pages instanceof Map ? pages : isoDatesByPath(pages);
+  if (byPath.size === 0) return null;
+  const cards = JSON.parse(json);
+  let changed = false;
+  for (const [pagePath, card] of Object.entries(cards)) {
+    if (!card || !Array.isArray(card.f)) continue;
+    for (const field of card.f) {
+      if (!Array.isArray(field) || typeof field[1] !== 'string') continue;
+      const long = longFormAll(field[1], byPath.get(pagePath));
+      if (long === null) continue;
+      field[1] = long;
+      changed = true;
+    }
+  }
+  return changed ? JSON.stringify(cards) : null;
 }
 
 /**
  * Walks every `.html` file under `siteRoot` (search-index.json is deliberately untouched, a
  * residual — see the ADR) and applies transformDates to each, writing back only the pages that
  * actually changed. With `pages` (the published pages, with their frontmatter), the pin's ISO dates
- * are rewritten too (transformIsoDates); `isoReplacements` counts those.
+ * are rewritten too (transformIsoDates, and transformPreviewDates on previews.json);
+ * `isoReplacements` counts the pages' ones.
  *
  * @param {string} siteRoot
  * @param {{ pages?: { outputPath: string, frontmatter: object }[] }} [opts]
@@ -164,12 +225,17 @@ function applyDateFormat(siteRoot, { pages = [] } = {}) {
       if (iso !== null) isoReplacements += countIso(before) - countIso(iso);
     }
   })(siteRoot, '');
+  const previewsPath = path.join(siteRoot, 'previews.json');
+  if (byPath.size && fs.existsSync(previewsPath)) {
+    const previews = transformPreviewDates(fs.readFileSync(previewsPath, 'utf8'), byPath);
+    if (previews !== null) fs.writeFileSync(previewsPath, previews);
+  }
   return { pagesPatched, replacements, isoReplacements };
 }
 
-// How many of the three ISO places a page still holds (any date), for the replacement count.
+// How many of the four ISO places a page still holds (any date), for the replacement count.
 function countIso(html) {
-  return (html.match(ISO_BADGE_RE) || []).length + (html.match(ISO_HEADER_RE) || []).length + (html.match(ISO_TIMELINE_RE) || []).length;
+  return [ISO_BADGE_RE, ISO_HEADER_RE, ISO_TIMELINE_RE, ISO_INGAME_RE].reduce((n, re) => n + (html.match(re) || []).length, 0);
 }
 
-module.exports = { DATE_TOSTRING_RE, transformDates, transformIsoDates, applyDateFormat };
+module.exports = { DATE_TOSTRING_RE, transformDates, transformIsoDates, transformPreviewDates, applyDateFormat };
