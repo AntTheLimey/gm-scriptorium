@@ -50,6 +50,16 @@ const MARKERS = [
     ],
   },
   {
+    // publish-v1.26.0: the to-hit calculator's data module carries rules facts with page citations.
+    // REDACTIONS gurps-tohit-data in src/generator/redactions.js.
+    id: 'gurps-tohit-data',
+    pinPath: 'lib/templates/gurps/tohit-data.js',
+    strings: [
+      'Weapon Bond, a perk: +1 with that one weapon (MA53)',
+      'The Basic Set technique (B232)',
+    ],
+  },
+  {
     // publish-v1.21.0: the to-hit calculator's browser script carries GURPS rules tables
     // (its own header says so), copied into every site. ASSET_REDACTIONS in src/generator/redactions.js.
     id: 'gurps-tohit-script',
@@ -143,7 +153,7 @@ const PIN_SCAN_BASELINE = [
   { pinPath: 'lib/templates/gurps/parse.js', line: 474, note: 'user-facing warning-message string naming the system; no rules data (line moved from 577 at the publish-v1.12.0 repin, content unchanged)' },
   { pinPath: 'lib/templates/gurps/render.js', line: 63, note: 'comment naming the system for a pure number-formatting helper; no rules data' },
   { pinPath: 'lib/templates/gurps/render.js', line: 72, note: 'comment naming the system for a pure number-formatting helper; no rules data' },
-  { pinPath: 'lib/templates/gurps/tohit-data.js', line: 1, note: 'new file at publish-v1.21.0: header comment of the calculator\'s data block; it reads the already-redacted reference rows and carries no table' },
+  { pinPath: 'lib/templates/gurps/tohit-data.js', line: 1, note: 'redacted by this work (REDACTIONS gurps-tohit-data, from publish-v1.26.0: the module now carries rules facts with page citations)' },
   { pinPath: 'lib/templates/pc-registry.js', line: 34, note: 'new at publish-v1.11.43: comment saying two systems keep their own consumed-section lists in pc.js; names the systems only, no rules data' },
   { pinPath: 'lib/templates/pc.js', line: 25, note: 'comment naming which system renderer the accordion filter reacts to; no rules data (line moved from 26 at the publish-v1.21.0 repin, content unchanged)' },
   { pinPath: 'lib/templates/pc.js', line: 26, note: 'comment naming which system renderer the accordion filter reacts to; no rules data (line moved from 27 at the publish-v1.21.0 repin, content unchanged)' },

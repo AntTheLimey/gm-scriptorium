@@ -99,6 +99,24 @@ const REDACTIONS = [
     // sheet's own pcSkills, taking `base` from the sheet's own column (coc/skills.js:67).
     stub: () => ({ REGENCY_SKILLS: [], BASE_SKILLS: [] }),
   },
+  {
+    id: 'gurps-tohit-data',
+    pinPath: 'lib/templates/gurps/tohit-data.js',
+    specifier: 'gm-apprentice-publish/lib/templates/gurps/tohit-data.js',
+    expectedSha256: 'b29979710fb3ae7894dba350aac024ba0317c4d0e46a26012c65fa2fa24708be',
+    reason:
+      'the GURPS to-hit calculator\'s data module grew at publish-v1.26.0 from names into rules ' +
+      'facts with page citations (how a technique buys off a penalty, a perk\'s bonus, which hit ' +
+      'locations a low target protects), and writes a perk\'s bonus into the data block of a ' +
+      'GURPS page. The calculator script is already redacted, so the block had no reader. See ' +
+      'docs/decisions/0007-rules-content-redaction.md.',
+    noticeClaim: 'Scriptorium also removes the calculator\'s data module, so no page carries its data',
+    // gurps/index.js:4 destructures buildTohitData and tohitMarkup at module load and calls
+    // buildTohitData once per GURPS page while the calculator setting is on (gurps/index.js:16): a null
+    // result renders the Combat tab with no calculator box and no data block, and adds no row to the
+    // build's to-hit faults (the stub never fills tohitRows). Each call is counted as a degraded page.
+    stub: () => ({ buildTohitData: () => null, tohitDataScript: () => '', tohitMarkup: () => '' }),
+  },
 ];
 
 /*
