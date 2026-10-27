@@ -634,11 +634,6 @@ module.exports = deepFreeze({
       what: 'An older home of the tagline. The site no longer reads it; use `publish.theme.tagline`. The panel shows a value left here but never writes one.',
       changedBy: '`init` writes it empty. By hand',
     },
-    host: {
-      type: 'text',
-      what: 'Where the generator is told the site will be hosted: `github-pages`, or `cloudflare-pages`. It affects only the generator\'s deploy step. GM-Scriptorium does not read it.',
-      changedBy: '`init`, or by hand',
-    },
     attachmentsDir: {
       type: 'text',
       what: 'The folder inside the vault that holds images.',

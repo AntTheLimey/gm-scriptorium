@@ -128,7 +128,6 @@ get" is what `init` writes. *Since 0.5.0.* The panel's first-run setup writes th
 |---|---|---|---|---|---|
 | `siteTitle` | text | no | - | The site's name, shown in the navigation bar and as the page title. New campaigns get the title you gave `init`, or the one in `campaign:` in `_meta/vault-config.md`. | The Title & tagline screen in the admin panel, `init`, or by hand |
 | `landingTagline` | text | no | - | An older home of the tagline. The site no longer reads it; use `publish.theme.tagline`. The panel shows a value left here but never writes one. | `init` writes it empty. By hand |
-| `host` | text | no | github-pages | Where the generator is told the site will be hosted: `github-pages`, or `cloudflare-pages`. It affects only the generator's deploy step. GM-Scriptorium does not read it. | `init`, or by hand |
 | `attachmentsDir` | text | no | _attachments | The folder inside the vault that holds images. | `init`, or by hand |
 | `folderMap` | table | yes | - | Which vault folder becomes which folder on the site. A map with no entries is allowed; the key must be there. New campaigns get the standard folders, and the generator's README lists them. | `init`, or by hand |
 | `excludeDirs` | list of text | yes | _meta, _Templates, _resources | Vault folders skipped completely. Joined with `publish.exclude_dirs`. A trailing slash, a leading `./` and backslashes make no difference. | `init`, or by hand |
