@@ -1630,6 +1630,10 @@ only (`test/admin-bugs-b1.dom.test.js`); Firefox's emulation does not substitute
 
 ### C81: a stub page cannot publish a withheld sub-heading, in the real win-x64 exe
 
+**Retired at `publish-v1.17.0`: run C209 instead.** The guard this criterion tests is gone (ADR 0042's
+"Retired" addendum), so step 2's refusal can no longer happen. The pin now withholds stub sections
+itself, and C209 checks that in the exe.
+
 Bug batch B2, issue 100 (docs/decisions/0042-stub-section-guard.md). Scriptorium now replaces the
 pinned generator's `keepOnlySections` export before `lib/build.js` loads, and refuses to build when
 that replacement did not land. Verified on Linux from source, and **on Windows (2026-10-07, rc.4, Windows 11 test VM)**, using the repository's own stub-heading fixture
@@ -2615,6 +2619,22 @@ Issue #213; ADR 0058 section 5 and addendum "The running page's button and the p
 2. Press Back. The options page's three buttons sit exactly as on a Setup run where the app is not running.
 3. Press Next, then Close and continue. The next page's buttons are in their usual places.
 4. Repeat steps 1 to 3 once in the same Setup run: the button is no wider the second time.
+
+### C209: stub pages withhold by the pin's own rule, in the real win-x64 exe
+
+The publish-v1.17.0 repin, [ADR 0042](../docs/decisions/0042-stub-section-guard.md)'s "Retired" addendum. Scriptorium no longer replaces the pinned generator's `keepOnlySections`; the pin withholds a stub page's excluded sections itself, after the note's strips. C81 described the retired guard, so its step 2 refusal can no longer happen. **Mark this OPEN: Linux and macOS tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of `test\fixtures\stub-heading-collision-vault` registered as campaign `c209` with its site config, and an output folder `S\out` that does not exist.
+
+1. `build c209 --force-check --config "S\config.toml"` exits 0.
+2. `findstr /s /m "stubleaksentinel stubhushsentinel storyordersentinel" S\out\*` finds nothing, including `S\out\search-index.json`. `S\out\locations\cellar.html` has no "Mentioned In" entry.
+3. `findstr /s /m "publishedappearancesentinel storyappearancesentinel" S\out\*` finds both, so steps 1 and 2 tested a real stub page and a real stub PC story. Re-hash the real config.
+
+### C218: YAML dates read "D Month YYYY" in badges, event headers, timelines, a session's "In-game:" line and preview cards, in the real win-x64 exe
+
+The publish-v1.17.0 repin, [ADR 0016](../docs/decisions/0016-book-leaves-and-page-motion.md)'s last addendum. The pin now prints a YAML date as `2026-07-11`, and `src/build/dates.js` puts "11 July 2026" back. **Mark this OPEN: Linux and macOS tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of the-long-lease example vault, registered as campaign `c218` with an output folder `S\out` that does not exist, and add `in_game_date: 2031-02-12` (unquoted) to `Events\The Chorister's Verse.md`. Give `Sessions\Session 01 - A Dragon at the Fair.md` the lines `in_game_date: [2031-02-12, 2031-06-16]` and, under `documents:`, `wrap_up: "[[Session 01 Wrap-Up]]"`. Add `Sessions\Session 01 Wrap-Up.md` with frontmatter `type: session_wrap` and `session: "[[Session 01 - A Dragon at the Fair]]"` and a line of text, and tick it in `_meta\publish-manifest.md`.
+
+1. `build c218 --config "S\config.toml"` exits 0.
+2. The session pages' date badges read "11 July 2026", "25 July 2026" and "8 August 2026". `S\out\events\the-choristers-verse.html` has a "Date" header line reading "12 February 2031", and `S\out\locations\maudrys-barrow.html`'s timeline shows "12 February 2031" beside that event. `S\out\sessions\session-01-a-dragon-at-the-fair.html` reads "In-game: 12 February 2031 – 16 June 2031".
+3. `findstr /s /m "2031-02-12 2031-06-16" S\out\*.html S\out\previews.json` finds no file. Re-hash the real config.
 
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 

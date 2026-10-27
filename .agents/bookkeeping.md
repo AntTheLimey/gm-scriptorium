@@ -6,5 +6,5 @@ introduced this file.
 
 | Item | Value | How to measure |
 |---|---|---|
-| Tests (`npm test`) | 6624 total, 6624 pass, 0 skipped (fully unskipped run) | The `tests` and `skipped` lines at the end of `npm test` output. A fully unskipped run needs `PLAYWRIGHT_MODULE` (absolute path to the playwright package folder) and axe-core installed beside it, or `AXE_CORE_PATH` (full path to the `axe.min.js` file) when it is not; see `../docs/DEVELOPING.md#running-the-browser-tests`; without them the real-browser tests skip and the count reads as skipped. |
-| Assets embedded by `npm run package` | 132 | `node -e "console.log(require('./scripts/pkg-assets.js').expectedAssets().length)"` |
+| Tests (`npm test`) | 6639 total, 6625 pass, 14 skipped (Linux run with the browser tests; the 14 skips need the Windows build tools, a C compiler and an x64 build host) | The `tests` and `skipped` lines at the end of `npm test` output. A fully unskipped run needs `PLAYWRIGHT_MODULE` (absolute path to the playwright package folder) and axe-core installed beside it, or `AXE_CORE_PATH` (full path to the `axe.min.js` file) when it is not; see `../docs/DEVELOPING.md#running-the-browser-tests`; without them the real-browser tests skip and the count reads as skipped. |
+| Assets embedded by `npm run package` | 139 | `node -e "console.log(require('./scripts/pkg-assets.js').expectedAssets().length)"` |
