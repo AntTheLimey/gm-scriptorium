@@ -205,7 +205,7 @@ function pairingViaPort(vaultDir, siteConfig) {
 function pairingViaVaultPath(vaultDir, siteConfig) {
   const publishSet = computePublishedSet(vaultDir, { ...siteConfig, vaultPath: vaultDir });
   const { corpus, published } = adaptOnce(publishSet);
-  const pairs = pinned.pairHubs(corpus, published, { vaultPath: vaultDir, apply: false });
+  const pairs = pinned.pairHubs(corpus, published, { vaultPath: vaultDir, apply: false, withheldWords: { person: 'someone', place: 'somewhere', thing: 'something' } });
   return {
     relSet: new Set([...pairs.entries()].map(([h, w]) => `${h.relPath}=>${w.relPath}`)),
     linked: new Set([...pairs.linked].map((w) => w.relPath)),

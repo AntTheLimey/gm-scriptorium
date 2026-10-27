@@ -276,6 +276,15 @@ function buildPublishDefaults() {
 
 const PUBLISH_DEFAULTS = buildPublishDefaults();
 
+// The words a withheld name is printed as (lib/settings/registry.js:567-582), the pin's defaults.
+// An old-layout vault cannot set them, so they are what its build uses; publishset's
+// loadPublishConfig carries the build's own reading as publishConfig.withheld_words.
+const DEFAULT_WITHHELD_WORDS = deepFreeze({
+  person: settingsRegistry.entry('player_site.withheld_words.person').default,
+  place: settingsRegistry.entry('player_site.withheld_words.place').default,
+  thing: settingsRegistry.entry('player_site.withheld_words.thing').default,
+});
+
 // lib/scanner.js:450 (module.exports). buildLinkMap (publish-v1.21.0 use) is the pin's own name-to-page
 // table, which src/build/connections.js resolves relationship targets against. dirIsExcluded is FR-16/SD-19's new export: the pin's own
 // case-insensitive excludeDirs matcher (matchExcludedDir), used by src/vault/publishset.js so its
@@ -428,6 +437,7 @@ module.exports = {
   ALWAYS_EXCLUDE_DIRS,
   parseManifest,
   PUBLISH_DEFAULTS,
+  DEFAULT_WITHHELD_WORDS,
   readPublishSettings,
   vaultRelPath,
   scanConfigFor,

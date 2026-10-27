@@ -533,7 +533,14 @@ function applyConnections(siteRoot, { vaultPath, jsonConfig, vocab = DEFAULT_VOC
   const corpus = publishedPages.concat(unpublishedPages);
   const { notes } = scanAllNotesForPairing(vaultPath);
   const scanned = new Set(corpus.map((p) => p.sourcePath));
-  const rewriter = pinned.gmAliasRewriter(corpus.concat(notes.filter((n) => !scanned.has(n.sourcePath))), publishedPages, notes);
+  // The withheld words are the site's (lib/build.js:754 passes publishConfig.withheld_words); from
+  // publish-v1.26.0 the rewriter refuses to run without them (lib/processor.js:2094).
+  const rewriter = pinned.gmAliasRewriter(
+    corpus.concat(notes.filter((n) => !scanned.has(n.sourcePath))),
+    publishedPages,
+    notes,
+    publishConfig.withheld_words,
+  );
   const ownByPath = ownTargets(publishedPages, publishConfig, rewriter);
   const published = new Map();
   for (const p of publishedPages) {

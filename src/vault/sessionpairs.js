@@ -176,11 +176,14 @@ function computeSessionPairing({ vaultPath, publishSet }) {
   const { notes: allNotes, symlinkedNotes } = module.exports.scanAllNotesForPairing(vaultPath);
   const uncertain = symlinkedNotes > 0;
 
-  const standard = pinned.pairHubs(corpus, published, { allNotes, apply: false });
+  // pairHubs hands the site's withheld words to the pin's alias rewriter, which refuses to run
+  // without them from publish-v1.26.0 (lib/session-hub.js:152). The words never change a pairing.
+  const withheldWords = (publishSet.publishConfig && publishSet.publishConfig.withheld_words) || pinned.DEFAULT_WITHHELD_WORDS;
+  const standard = pinned.pairHubs(corpus, published, { allNotes, apply: false, withheldWords });
 
   const scannedSourcePaths = new Set(corpusPages.map((p) => p.sourcePath));
   const notesOutsideCorpus = allNotes.filter((n) => !scannedSourcePaths.has(n.sourcePath));
-  const wide = pinned.pairHubs(corpus.concat(notesOutsideCorpus), published, { allNotes, apply: false });
+  const wide = pinned.pairHubs(corpus.concat(notesOutsideCorpus), published, { allNotes, apply: false, withheldWords });
 
   const pairs = [...standard.entries()].map(([hub, wrapUp]) => toPairEntry(hub, wrapUp, originalOf, publishedSet));
   const widePairs = [...wide.entries()].map(([hub, wrapUp]) => toPairEntry(hub, wrapUp, originalOf, publishedSet));
