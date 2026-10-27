@@ -16,10 +16,15 @@ const { toRelativePosix } = require('../util/paths');
  * on `adaptPage` / `scanAllNotesForPairing` independently of `computeSessionPairing`.
  */
 
-// lib/scanner.js:428: the note is frontmatter-gated when its raw text matches either the
-// aliases-or-withheld line or the session-type line. ALIASES_LINE mirrors that line's first half
-// verbatim (`withheld:` joined it at publish-v1.21.0).
-const ALIASES_LINE = /^(?:(?:gm_)?aliases|withheld):/m;
+// lib/scanner.js:434-435: the note's frontmatter is read when it sits directly under `_meta`, or its
+// raw text has an aliases, withheld, title or publish line, a meta or template type line, or a
+// session type line. ALIASES_LINE and HOUSEKEEPING_TYPE_LINE mirror the pin's literals verbatim
+// (`withheld:` joined at publish-v1.21.0; `title:`, `publish:`, the `_meta` folder and the
+// housekeeping types at publish-v1.26.0, so the pin can tell its own housekeeping notes apart,
+// lib/publish-decision.js isHousekeepingNote). A `title:` changes the names pairHubs resolves a
+// pairing link against, so the port must read the same notes.
+const ALIASES_LINE = /^(?:(?:gm_)?aliases|withheld|title|publish):/m;
+const HOUSEKEEPING_TYPE_LINE = /^type:\s*["']?(meta|template)["']?\s*$/m;
 
 // lib/scanner.js:408's SESSION_TYPE_LINE, in its exact shape, built from the pin's own
 // WRAP_UP_TYPES rather than a hand copy of the three type strings -- a pin bump that changes the
@@ -93,7 +98,8 @@ function scanAllNotesForPairing(vaultPath) {
       const title = entry.name.slice(0, -3);
       const relPath = toRelativePosix(vaultPath, full);
       const result = read.readFrontmatter(full);
-      const gated = ALIASES_LINE.test(result.raw) || SESSION_TYPE_GATE.test(result.raw);
+      const inMeta = relPath.split('/')[0] === '_meta';
+      const gated = inMeta || ALIASES_LINE.test(result.raw) || HOUSEKEEPING_TYPE_LINE.test(result.raw) || SESSION_TYPE_GATE.test(result.raw);
       const frontmatter = result.ok && gated ? result.data || {} : {};
 
       notes.push({
