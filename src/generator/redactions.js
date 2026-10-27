@@ -83,11 +83,11 @@ const REDACTIONS = [
     id: 'coc-skills-data',
     pinPath: 'lib/templates/coc/skills-data.js',
     specifier: 'gm-apprentice-publish/lib/templates/coc/skills-data.js',
-    expectedSha256: 'e1a4d7f46fb48984999da692247dc19280555b0a997c6c59df6e084c4f8f6877',
+    expectedSha256: 'dc30264ae010fd0b796c13821842d166df575661064f1c6be0fe02caaf135188',
     reason:
       'hardcodes the named Call of Cthulhu 7th Edition skill list and starting percentages ' +
-      '(lib/templates/coc/skills-data.js:3-56), merged unconditionally into every CoC page ' +
-      '(lib/templates/coc/skills.js:36). Ships per the orchestrator decision recorded in ' +
+      '(lib/templates/coc/skills-data.js:6-63), merged unconditionally into every CoC page ' +
+      '(lib/templates/coc/skills.js:55). Ships per the orchestrator decision recorded in ' +
       'docs/decisions/0007-rules-content-redaction.md; skill rows on a CoC page now come only ' +
       "from the user's own sheet.",
     // Bound to scripts/generate-notices.js's Section 4 CoC paragraph by
@@ -95,8 +95,8 @@ const REDACTIONS = [
     // the build (AC-R11). No marker string (scripts/content-markers.js) appears here.
     noticeClaim: "Skill rows on a Call of Cthulhu character page come only from the user's own character sheet.",
     // REGENCY_SKILLS / BASE_SKILLS are the `canonical` seed mergeSkills() reads at
-    // coc/skills.js:36; an empty array leaves mergeSkills building its row set purely from the
-    // sheet's own pcSkills, taking `base` from the sheet's own column (coc/skills.js:46).
+    // coc/skills.js:55; an empty array leaves mergeSkills building its row set purely from the
+    // sheet's own pcSkills, taking `base` from the sheet's own column (coc/skills.js:67).
     stub: () => ({ REGENCY_SKILLS: [], BASE_SKILLS: [] }),
   },
 ];
@@ -124,7 +124,7 @@ const ASSET_REDACTIONS = [
   {
     id: 'gurps-tohit-script',
     pinPath: 'js/gurps-tohit.js',
-    expectedSha256: 'bfa4707e8cd1151ef859a4f0130c62e27d0d414af7abebcafb4d4198f0f210c9',
+    expectedSha256: '877be8f5f0ad58428b1a5ed0d9733d4fc88d7a0aff916bcd0d051df5c813b629',
     reason:
       'the GURPS to-hit calculator script (new at publish-v1.21.0) hardcodes rules tables in its ' +
       'own source, under its own header naming them, and lib/build.js copies every js/ file into ' +
@@ -151,7 +151,7 @@ const ASSET_REDACTIONS = [
  *     exactly ONCE, at module load, regardless of how many CoC pages
  *     exist; counting that read would count 2, always, even for a build
  *     with zero CoC pages (AC-R9 requires a D&D-only build to print
- *     nothing extra). The real per-page signal is coc/skills.js:38's
+ *     nothing extra). The real per-page signal is coc/skills.js:55's
  *     `for (const c of canonical)` inside mergeSkills(), which iterates
  *     the same captured array reference fresh on every call — once per
  *     CoC page actually rendered, which is what Structural decision D3's
