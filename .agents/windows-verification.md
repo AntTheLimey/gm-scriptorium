@@ -2628,6 +2628,22 @@ The publish-v1.17.0 repin, [ADR 0042](../docs/decisions/0042-stub-section-guard.
 2. `findstr /s /m "stubleaksentinel stubhushsentinel storyordersentinel" S\out\*` finds nothing, including `S\out\search-index.json`. `S\out\locations\cellar.html` has no "Mentioned In" entry.
 3. `findstr /s /m "publishedappearancesentinel storyappearancesentinel" S\out\*` finds both, so steps 1 and 2 tested a real stub page and a real stub PC story. Re-hash the real config.
 
+### C210: the Connections lane reads the generator's section, in the real win-x64 exe
+
+The publish-v1.21.0 repin, [ADR 0017](../docs/decisions/0017-story-timeline-and-connections-lane.md)'s last addendum. **Mark this OPEN: Linux and macOS tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of the-long-lease example vault, registered as campaign `c210`.
+
+1. `build c210 --config "S\config.toml"` exits 0.
+2. `findstr /s /m /c:"class=\"cx\"" S\out\*.html` finds nothing, and `findstr /s /m data-scriptorium-connections S\out\*.html` finds 38 pages.
+3. Open `characters\npcs\queen-hesper.html` in Edge: the Connections lane shows a "Named by" group with Emlyn Crewe, Orpiment, Queen Maudry and Wystan Pye, and the Console shows no error. Re-hash the real config.
+
+### C211: no GURPS to-hit calculator script ships, in the real win-x64 exe
+
+The publish-v1.21.0 repin, [ADR 0007](../docs/decisions/0007-rules-content-redaction.md)'s last addendum. **Mark this OPEN: Linux and macOS tests prove the runtime layer only; the packaging layer is checked only on a real executable.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of `test\fixtures\redaction-gurps-vault` registered as campaign `c211` with its site config.
+
+1. `build c211 --force-check --config "S\config.toml"` exits 0 and prints a `rules-content redaction(s) degraded this build` note naming `gurps-tohit-script`.
+2. `S\out\js\gurps-tohit.js` starts with `// Redacted by Scriptorium`, and `findstr /s /m /c:"[[800, 10]" S\out\*` finds nothing.
+3. `findstr /m /c:"[[800, 10]" gm-scriptorium-win-x64.exe` finds nothing. Re-hash the real config.
+
 ### C218: YAML dates read "D Month YYYY" in badges, event headers, timelines, a session's "In-game:" line and preview cards, in the real win-x64 exe
 
 The publish-v1.17.0 repin, [ADR 0016](../docs/decisions/0016-book-leaves-and-page-motion.md)'s last addendum. The pin now prints a YAML date as `2026-07-11`, and `src/build/dates.js` puts "11 July 2026" back. **Mark this OPEN: Linux and macOS tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of the-long-lease example vault, registered as campaign `c218` with an output folder `S\out` that does not exist, and add `in_game_date: 2031-02-12` (unquoted) to `Events\The Chorister's Verse.md`. Give `Sessions\Session 01 - A Dragon at the Fair.md` the lines `in_game_date: [2031-02-12, 2031-06-16]` and, under `documents:`, `wrap_up: "[[Session 01 Wrap-Up]]"`. Add `Sessions\Session 01 Wrap-Up.md` with frontmatter `type: session_wrap` and `session: "[[Session 01 - A Dragon at the Fair]]"` and a line of text, and tick it in `_meta\publish-manifest.md`.
