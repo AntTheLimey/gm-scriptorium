@@ -203,24 +203,6 @@ test('with two </main> in a page, .vt-fx lands before the FIRST one after the FI
   assert.equal((out.match(/class="vt-fx"/g) || []).length, 1);
 });
 
-// -- writeSessionsIndex output (real donor splice) ---------------------------------------------
-
-test('a real writeSessionsIndex output gets both the script and .vt-fx', () => {
-  withTmpDir((dir) => {
-    const { writeSessionsIndex } = require('../src/build/sessions-index');
-    const sessionsDir = path.join(dir, 'sessions');
-    fs.mkdirSync(sessionsDir, { recursive: true });
-    fs.writeFileSync(path.join(sessionsDir, 'recap-01.html'), basePage());
-    writeSessionsIndex(dir, { siteTitle: 'Test Site' });
-
-    const indexHtml = fs.readFileSync(path.join(sessionsDir, 'index.html'), 'utf8');
-    const out = transformPageTurn(indexHtml);
-    assert.notEqual(out, null);
-    assert.equal((out.match(new RegExp(PAGETURN_MARKER, 'g')) || []).length, 1);
-    assert.equal((out.match(/class="vt-fx"/g) || []).length, 1);
-  });
-});
-
 // -- applyPageTurn / walk, fxInserted counting --------------------------------------------------
 
 test('applyPageTurn patches every .html and counts fxInserted correctly', () => {

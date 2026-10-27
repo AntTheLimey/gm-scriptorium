@@ -10,14 +10,12 @@ const { applyAssetRedactions } = require('../generator/redactions');
 const { writeSiteNotice } = require('./notice');
 const { writeHouseStyle } = require('./housestyle');
 const { writeThemeAssets } = require('./themeassets');
-const { writeSessionsIndex } = require('./sessions-index');
 const { applySessionBadgeFields } = require('./sessionbadges');
 const { applyDateFormat } = require('./dates');
 const { applyAccordionOpen } = require('./accordions');
 const { applyTimeline } = require('./timeline');
 const { applyConnections } = require('./connections');
 const { writeSiteScript } = require('./sitescript');
-const { applyStoryFocus } = require('./storyfocus');
 const { applyPageTurn } = require('./pageturn');
 const { injectGmAccessLink } = require('./gmaccess');
 const { captureWithheldHubs, compareSessionPairs } = require('./sessionmodel');
@@ -143,10 +141,8 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   const sessionPairing = sessionpairs.computeSessionPairing({ vaultPath, publishSet: sessionPublishSet });
   const sessionPairDivergence = compareSessionPairs(wrapUpByHub, sessionPairing);
 
-  // UI-01 / issue 214 (docs/decisions/0006-post-build-page-writer.md): the generator never writes
-  // sessions/index.html, so Scriptorium writes it here, before the notice footer pass below picks
-  // it up like any other page.
-  const sessionsIndex = writeSessionsIndex(stagingOut, { siteTitle: userJsonConfig.siteTitle });
+  // Retired: Scriptorium's own sessions/index.html writer. The pin has written that page itself since
+  // publish-v1.11.40 (docs/decisions/0006-post-build-page-writer.md, last addendum).
 
   // The fourth licence-provenance fix (docs/PROVENANCE.md B4): every site
   // gm-apprentice-publish builds redistributes lunr.js and its own CSS/JS
@@ -185,9 +181,8 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   // publish-v1.12.4 renders the grouped Story toggle as a <button> that only opens the menu, with
   // "Story so far" as the menu's first entry. See docs/decisions/0014-story-nav-split-toggle.md's addendum.
 
-  // Downstream shim pending upstream (ADR 0014 final addendum): Escape inside the Story dropdown returns
-  // focus to its toggle. Before the leak scan, so the scanned tree is the tree that swaps.
-  const storyFocus = applyStoryFocus(stagingOut);
+  // Retired: Escape inside the Story dropdown returning focus to its toggle. The pin's js/nav.js has
+  // done it since publish-v1.15.1. See docs/decisions/0014-story-nav-split-toggle.md's last addendum.
 
   // FR-20/SD-20 (docs/agent-runs/repin-v1.11.40-engineering-brief-2026-09-30.md): retired.
   // recap-emphasis.js turned the landing recap's wrapping *...* into <em>...</em> by hand,
@@ -279,7 +274,6 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
     generatorWarnings: generatorWarningLines(detail, { stagingRoot, stagingOut, finalOut }),
     notice,
     houseStyle,
-    storyFocus,
     themeAssets,
     sessionPairs: { wrapUpByHub, unreadable, divergence: sessionPairDivergence },
     sessionBadges,
@@ -289,7 +283,6 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
     connections,
     siteScript,
     pageTurn,
-    sessionsIndex,
     redactions,
     outputScan: { findings: scanFindings, overridden: scanHasError && force },
   };

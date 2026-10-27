@@ -179,24 +179,15 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 - **The Story nav split toggle** is retired (`docs/decisions/0014-story-nav-split-toggle.md`'s
   addendum): upstream's `publish-v1.12.4` renders the grouped Story toggle as a `<button>` with "Story so
   far" as the menu's first entry. `test/story-nav-pin.test.js` proves that on a real build, so a regression in
-  the pin shows up by name. One downstream shim remains, `src/build/storyfocus.js` (Escape inside the Story
-  dropdown returns focus to the toggle; retire when the pin does it).
-- **The Sessions index page writer** (`src/build/sessions-index.js`,
-  `docs/decisions/0006-post-build-page-writer.md`): the generator's `DIR_LABELS`
-  (`lib/templates/base.js:3-20` at the pinned commit) omits `sessions`, so it never writes
-  `sessions/index.html`, though the nav always links to it. This module writes it by splicing new
-  content between the first `<main class="content">` and the following `</main>` of a donor
-  `sessions/*.html` page. **Self-retirement here is a plain existence check, not a source-text
-  match**: if `sessions/index.html` already exists on disk before this module runs (whether from a
-  prior run of this same writer, or from the generator's own `DIR_LABELS` output once fixed
-  upstream), it returns `{ written: false, reason: 'already-generated' }` and never overwrites it.
-  This is the same bug: upstream has fixed it. `lib/templates/base.js`'s `DIR_LABELS` on `main`
-  today includes `'sessions': 'Sessions'`, with a comment citing
-  [#214](https://github.com/AntTheLimey/gm-apprentice/issues/214) directly, and `lib/build.js`
-  (around lines 874-912 at the pinned commit) now writes it the same way as every other section
-  index. Once a pin bump brings that in, this module's existence-check makes it retire itself
-  automatically, with no further code change needed, the cleaner outcome of the two self-retiring
-  patches in this repo, contrasted with `sectionfilter.js` above.
+  the pin shows up by name. The last downstream shim, which returned focus to the toggle on Escape, is
+  retired too: the pin's `js/nav.js` has done it since `publish-v1.15.1`.
+- **The Sessions index page writer** is retired
+  (`docs/decisions/0006-post-build-page-writer.md`, last addendum). The generator has written
+  `sessions/index.html` itself since `publish-v1.11.40` (upstream
+  [#214](https://github.com/AntTheLimey/gm-apprentice/issues/214)), so Scriptorium's writer only ever
+  found the page already there. `test/build-sessions-index.test.js` now builds `story-vault` and checks
+  that the generator's own page exists and links every session, so a pin that stops writing it fails
+  at the pin bump, by name.
 - **The `events/index.html` redirect-stub exception** (`src/build/pageturn.js`'s own comment, and
   its test in `test/build-pageturn.test.js`): the generator's `lib/build.js` writes `events/index.html`
   as a bare `<meta http-equiv="refresh">` redirect stub straight to the campaign timeline whenever
@@ -280,17 +271,15 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 
 ### The vault config contract Scriptorium reads or validates
 
-- **`vault.config.json`**: the generator's own `scanVaultReport`/`mapFolder`
-  (`lib/scanner.js:37-54,287`) consume `config.excludeDirs` (via `.some(...)`) and `config.folderMap`
-  (via `Object.entries(...)`) with **no defaulting of its own**, neither key has a fallback
-  anywhere in `lib/config.js` or `PUBLISH_DEFAULTS`. `src/cli/check.js`'s `assertScanKeysPresent()`
-  refuses early, before `check` or `build` ever reaches the generator, when either key is missing or
-  wrongly typed: a **missing `folderMap` still throws** `TypeError: Cannot convert undefined or null
-  to object` at `mapFolder`'s own `Object.entries(folderMap)` (`lib/scanner.js:39`) if this guard
-  were ever bypassed, and a **missing `excludeDirs`** throws `TypeError: excludeDirs.some is not a
-  function` at `lib/scanner.js:81`. This is a required-keys contract on the generator's side, not an
-  optional-with-defaults one, and Scriptorium's check exists to fail loudly on the Scriptorium side
-  first, with a readable error, rather than let the generator's raw exception surface.
+- **`vault.config.json`**: Scriptorium requires `excludeDirs` (a list) and `folderMap` (a map) in the
+  site config. `src/cli/check.js`'s `assertScanKeysPresent()` refuses early, before `check` or `build`
+  reaches the generator, when either is missing or wrongly typed. The generator versions it was written
+  for threw a raw `TypeError` in their scan. From publish-v1.14.0 at the latest the generator fills in
+  defaults itself (`resolveConfig`, `lib/config.js`), but its default `folderMap` maps nothing, so a
+  site config without one builds a site of empty index pages, and only a scanner warning per folder
+  says why. The refusal stays as Scriptorium's own check, so a GM gets one clear message instead
+  (owner decision, 2026-10-17). Scriptorium's own copy of the scan (`src/vault/publishset.js`) also
+  reads `excludeDirs` as a list.
 - **`vault-config.md`** frontmatter (a vault's `_meta/vault-config.md`, see the fixtures under
   `test/fixtures/*/​_meta/vault-config.md`): the `publish.exclude_sections` list a campaign author
   writes there is unioned case-insensitively with the generator's own `PUBLISH_DEFAULTS.exclude_sections`
