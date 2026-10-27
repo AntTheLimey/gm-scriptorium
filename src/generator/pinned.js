@@ -119,10 +119,89 @@ const {
 // lib/manifest.js:99 (module.exports)
 const { parseManifest } = require('gm-apprentice-publish/lib/manifest');
 
-// lib/config.js:597 (module.exports). normalizeExcludeDir (lib/config.js:177-194) and stricterCallouts
-// (lib/config.js:219-229) are how the pin's own config merge spells an exclude_dirs entry and picks
-// exclude_callouts; src/vault/publishset.js's port calls them so it cannot drift from either rule.
-const { PUBLISH_DEFAULTS, vaultRelPath, scanConfigFor, normalizeExcludeDir, stricterCallouts } = require('gm-apprentice-publish/lib/config');
+// lib/config.js:379 (module.exports).
+const { vaultRelPath, scanConfigFor } = require('gm-apprentice-publish/lib/config');
+
+// lib/settings/folders.js:104 and lib/settings/legacy.js:453 (module.exports). At publish-v1.26.0
+// normalizeExcludeDir (lib/settings/folders.js:12-27) and stricterCallouts (lib/settings/legacy.js:64-74)
+// moved out of lib/config.js; they are still how the pin spells an exclude_dirs entry and picks
+// exclude_callouts. normalizeExcludeDir's third argument is now a function the pin tells about a
+// dropped entry (it was true, false or a function). Scriptorium passes `false` to mean "quietly",
+// which the pin would now call and throw on, so the wrapper below turns anything that is not a
+// function into a no-op.
+const settingsFolders = require('gm-apprentice-publish/lib/settings/folders');
+const { stricterCallouts } = require('gm-apprentice-publish/lib/settings/legacy');
+
+/**
+ * The pin's normalizeExcludeDir, with a non-function `say` read as "say nothing".
+ *
+ * @param {unknown} entry an exclude_dirs entry as written
+ * @param {string} vaultPath
+ * @param {Function|boolean} [say]
+ * @returns {string|null}
+ */
+function normalizeExcludeDir(entry, vaultPath, say) {
+  return settingsFolders.normalizeExcludeDir(entry, vaultPath, typeof say === 'function' ? say : () => {});
+}
+
+// lib/settings/registry.js:685 (module.exports). At publish-v1.26.0 the pin dropped PUBLISH_DEFAULTS:
+// each setting's default now lives on its entry in the settings registry. Scriptorium still reads
+// the old shape (check's config models, the panel, the reference pages), so it is rebuilt here from
+// the registry, one entry per old key, each found by the old name the registry keeps for it
+// (`was`, in the vault file). Against publish-v1.21.0's object two keys differ: landing.max_events
+// is new (the landing page's event count), and four_oh_four.style is gone (the pin retired it).
+// theme.genre and theme.campaign_image have no default in the registry (unset), as before.
+const settingsRegistry = require('gm-apprentice-publish/lib/settings/registry');
+
+const OLD_DEFAULT_KEYS = [
+  'mode', 'exclude_drafts', 'exclude_callouts', 'exclude_sections', 'exclude_fields', 'exclude_dirs',
+  'search', 'attachments_dir', 'folder_map',
+  'landing.recency_window', 'landing.max_npcs', 'landing.max_locations', 'landing.max_events',
+  'landing.featured_npcs', 'landing.featured_locations', 'landing.quick_links',
+  'theme.palette.primary', 'theme.palette.accent', 'theme.palette.background', 'theme.palette.text',
+  'theme.fonts.heading', 'theme.fonts.body', 'theme.fonts.source', 'theme.fonts.files', 'theme.default_mode',
+  'four_oh_four.message',
+  'images.optimize', 'images.format', 'images.max_width', 'images.quality',
+  'overrides.fields', 'section_titles',
+];
+
+function deepFreeze(value) {
+  if (value && typeof value === 'object') {
+    for (const v of Object.values(value)) deepFreeze(v);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+function buildPublishDefaults() {
+  const out = { theme: { genre: null, campaign_image: null } };
+  for (const key of OLD_DEFAULT_KEYS) {
+    const oldName = `publish.${key}`;
+    const e = settingsRegistry.REGISTRY.find((x) => (x.was || []).some((w) => w.in === 'vault' && w.name === oldName));
+    if (!e || e.default === undefined) {
+      throw new ScriptoriumError(`the pinned generator's settings registry has no default for ${oldName}`);
+    }
+    const parts = key.split('.');
+    let at = out;
+    for (const part of parts.slice(0, -1)) at = at[part] || (at[part] = {});
+    at[parts[parts.length - 1]] = structuredClone(e.default);
+  }
+  // Key order as publish-v1.21.0 had it, so anything that lists the keys lists them as before.
+  const { theme, ...rest } = out;
+  const { genre, palette, fonts, campaign_image: campaignImage, default_mode: defaultMode } = theme;
+  const { landing, four_oh_four: notFound, images, overrides, section_titles: sectionTitles, ...head } = rest;
+  return deepFreeze({
+    ...head,
+    landing,
+    theme: { genre, palette, fonts, campaign_image: campaignImage, default_mode: defaultMode },
+    four_oh_four: notFound,
+    images,
+    overrides,
+    section_titles: sectionTitles,
+  });
+}
+
+const PUBLISH_DEFAULTS = buildPublishDefaults();
 
 // lib/scanner.js:450 (module.exports). buildLinkMap (publish-v1.21.0 use) is the pin's own name-to-page
 // table, which src/build/connections.js resolves relationship targets against. dirIsExcluded is FR-16/SD-19's new export: the pin's own
@@ -137,8 +216,21 @@ const { slugify, mapFolder, dirIsExcluded, buildLinkMap } = require('gm-apprenti
 // never wiki.js's own second copy (docs/agent-runs corrections, R2) and never a hand copy.
 const { pairHubs, isWrapUp, WRAP_UP_TYPES } = require('gm-apprentice-publish/lib/session-hub');
 
-// lib/theme.js:217 (module.exports)
-const { resolveGenrePreset } = require('gm-apprentice-publish/lib/theme');
+// lib/theme.js:211 (module.exports). resolveGenrePreset is gone at publish-v1.26.0 (the settings
+// reader now turns an unknown genre into null before the theme sees it); its body was one line over
+// GENRE_ALIASES, which the pin still exports, and this is that line.
+const { GENRE_ALIASES } = require('gm-apprentice-publish/lib/theme');
+
+/**
+ * The preset a genre names, or null: publish-v1.21.0's resolveGenrePreset, over the pin's own aliases.
+ *
+ * @param {unknown} genre
+ * @returns {string|null}
+ */
+function resolveGenrePreset(genre) {
+  if (!genre) return null;
+  return GENRE_ALIASES[String(genre).toLowerCase().trim()] || null;
+}
 
 // lib/wikilink.js:197 (module.exports). labelsForLinks is new at publish-v1.17.0: how the pin prints a
 // wikilink inside a title (by its label), which src/vault/publishset.js's display-title port calls.
@@ -177,7 +269,7 @@ const lunr = require('gm-apprentice-publish/node_modules/lunr');
 // eslint-disable-next-line global-require
 const LUNR_VERSION = require('gm-apprentice-publish/node_modules/lunr/package.json').version;
 
-const PIN_COMMIT = '9def97ea6586009019b35d77ba480738a936c457';
+const PIN_COMMIT = '228fa161932d9119408d28e11628e22dd9b2ed76';
 
 /*
  * V1e-1 (ADR 0033, SD-5): the generator's OWN gray-matter, as the pin's lib/frontmatter.js:2 itself
