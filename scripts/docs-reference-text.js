@@ -554,12 +554,12 @@ module.exports = deepFreeze({
       what: 'Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. A trailing slash, a leading `./` and backslashes make no difference. `check` compares the two lists and says if they differ.',
     },
     exclude_drafts: {
-      type: 'true or false',
-      what: 'Whether pages with `canon_status: DRAFT` are left out of the site.',
+      type: 'on or off',
+      what: 'Whether pages with `canon_status: DRAFT` are left out of the site. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. Any other value stops the build (`config/hiding-setting-fault`).',
     },
     exclude_callouts: {
-      type: 'true or false, or a list of text',
-      what: 'Whether callout blocks are removed from pages. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used.',
+      type: 'on or off, or a list of text',
+      what: 'Whether callout blocks are removed from pages. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used.',
     },
     overrides: {
       type: 'table',
@@ -646,17 +646,17 @@ module.exports = deepFreeze({
     },
     excludeDirs: {
       type: 'list of text',
-      what: 'Vault folders skipped completely. Joined with `publish.exclude_dirs`. A trailing slash, a leading `./` and backslashes make no difference.',
+      what: 'Vault folders skipped completely. Joined with `publish.exclude_dirs`; when that is not set, added to the built-in folders. A trailing slash, a leading `./` and backslashes make no difference.',
       changedBy: '`init`, or by hand',
     },
     excludeSections: {
       type: 'list of text',
-      what: 'Headings whose section is removed from every page. Joined with `publish.exclude_sections`.',
+      what: 'Headings whose section is removed from every page. Joined with `publish.exclude_sections`; when that is not set, added to the built-in headings.',
       changedBy: '`init`, or by hand',
     },
     excludeCallouts: {
-      type: 'true or false, or a list of text',
-      what: 'Whether callout blocks are removed. When `publish.exclude_callouts` is also set, the stricter of the two is used.',
+      type: 'on or off, or a list of text',
+      what: 'Whether callout blocks are removed. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. When `publish.exclude_callouts` is also set, the stricter of the two is used.',
       changedBy: '`init`, or by hand',
     },
     backend: {
@@ -671,7 +671,7 @@ module.exports = deepFreeze({
     },
     excludeFields: {
       type: 'list of text',
-      what: 'Frontmatter fields that are never published. Joined with `publish.exclude_fields`. A new campaign has none here, and relies on the defaults.',
+      what: 'Frontmatter fields that are never published. Joined with `publish.exclude_fields`; when that is not set, added to the built-in fields. A new campaign has none here, and relies on the defaults.',
       changedBy: 'By hand',
     },
     outputDir: {
