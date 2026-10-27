@@ -77,20 +77,28 @@ function withoutReportedUnmapped(generatorWarnings, reportedDirs) {
  * have moved, naming a tool (migrate.py) Scriptorium users do not have. Those lines are noise
  * about Scriptorium's own scaffold, so drop exactly them and nothing else:
  *  - the two backend "old name" lines, only when that backend key is false (the scaffold value);
+ *  - the landingTagline "old name" line, new at publish-v1.26.0. The scaffold writes the key, the
+ *    site no longer reads it and Scriptorium's reference page already says so
+ *    (docs/reference/vault-config.md), and up to 1.21.0 no build printed it;
  *  - the legacy-settings line, only when every listed key is a scaffold key and no entry "..." is
  *    still applied clause is present.
+ * The old-name texts are the pin's (lib/settings/faults.js formatFault, "<name> is an old name; use
+ * <setting>."), with the "WARNING: " the build puts before every warning; they changed at
+ * publish-v1.26.0, which is why each is matched whole.
  * The "is not a list" and "cannot be moved" lines never match. Anything else stays visible.
  */
 const SCAFFOLD_KEY_RE = /^(siteTitle|landingTagline|attachmentsDir|folderMap|excludeDirs|excludeSections|excludeCallouts|backend)( \(ignored; the vault file sets it\))?$/;
 const LEGACY_PREFIX = 'WARNING: vault.config.json still holds campaign settings: ';
 const LEGACY_SUFFIX = '. Settings left in vault.config.json are planned to stop being read in plugin 1.11.0. Run `migrate.py <vault>` to move them.';
-const STATUS_BAR_OLD_NAME_PREFIX = 'WARNING: vault.config.json backend.statusBar is an old name; set ';
-const INBOX_OLD_NAME = 'WARNING: vault.config.json backend.inbox is an old name; set publish.inbox';
+const STATUS_BAR_OLD_NAME = 'WARNING: backend.statusBar is an old name; use publish.live_stats.';
+const INBOX_OLD_NAME = 'WARNING: backend.inbox is an old name; use publish.inbox.';
+const LANDING_TAGLINE_OLD_NAME = 'WARNING: landingTagline is an old name; use publish.theme.tagline.';
 function withoutScaffoldNoise(generatorWarnings, siteConfig) {
   const backend = (siteConfig && siteConfig.backend) || {};
   return generatorWarnings.filter((line) => {
-    if (line.startsWith(STATUS_BAR_OLD_NAME_PREFIX) && backend.statusBar === false) return false;
+    if (line === STATUS_BAR_OLD_NAME && backend.statusBar === false) return false;
     if (line === INBOX_OLD_NAME && backend.inbox === false) return false;
+    if (line === LANDING_TAGLINE_OLD_NAME) return false;
     if (line.startsWith(LEGACY_PREFIX) && line.endsWith(LEGACY_SUFFIX)) {
       const middle = line.slice(LEGACY_PREFIX.length, line.length - LEGACY_SUFFIX.length);
       if (middle.split(', ').every((item) => SCAFFOLD_KEY_RE.test(item))) return false;
