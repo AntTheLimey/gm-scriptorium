@@ -73,6 +73,18 @@ installSegmenterShim();
 const { installNetworkGuard } = require('./netguard');
 installNetworkGuard();
 
+// ADR 0007: the rules-content redactions must be in require.cache before any pin module loads the
+// character-sheet templates. Up to publish-v1.21.0 only the build reached them (bootstrap.js seeds
+// them just before require('gm-apprentice-publish')). From publish-v1.26.0 nearly every pin module
+// requires lib/settings, whose registry requires lib/templates/pc-registry.js, which loads every
+// system's templates, gurps/blocks/reference.js and coc/skills-data.js among them. So the facade
+// seeds them here, before its first pin require, as it installs the shims above. bootstrap.js still
+// re-seeds before each build (applyRedactions accepts its own earlier seed), and a pin module loaded
+// before this point makes applyRedactions throw, so the process fails closed.
+// eslint-disable-next-line global-require
+const { applyRedactions } = require('./redactions');
+applyRedactions();
+
 // lib/processor.js:1776 (module.exports)
 const {
   stripDataview,

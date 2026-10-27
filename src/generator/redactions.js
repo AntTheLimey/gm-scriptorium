@@ -24,8 +24,10 @@ const { ScriptoriumError } = require('../util/errors');
  *     deleting this entry, its pkg.patches key, and its notices paragraph.
  *
  * applyRedactions() seeds require.cache with a Scriptorium-authored stub
- * for each, called immediately before bootstrap.js's
- * require('gm-apprentice-publish'). Because the require graph is fully
+ * for each. src/generator/pinned.js calls it at load, before its first pin
+ * require (from publish-v1.26.0 the pin's settings registry loads every
+ * template, so the facade itself reaches these files), and bootstrap.js
+ * calls it again immediately before require('gm-apprentice-publish'). Because the require graph is fully
  * eager (lib/index.js -> lib/templates/index.js -> ... ->
  * gurps/layout.js:19, which destructures renderReference AT MODULE LOAD),
  * a seed that lands after that chain has already run does nothing at
