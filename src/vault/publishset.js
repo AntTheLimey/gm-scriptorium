@@ -74,165 +74,84 @@ function uncycled(data) {
  */
 
 // ---------------------------------------------------------------------------
-// config.js merge (gm-apprentice-publish lib/config.js), ported subset
+// The vault's settings, read by the pin's own loader (lib/config.js loadPublishConfig)
 // ---------------------------------------------------------------------------
 
 /**
- * Union two exclude lists case-insensitively, preserving first-seen
- * casing/order, falling back to `defaults` only when NEITHER source
- * supplies a list. Ported from the pin's (unexported) unionExcludeList as it stood at
- * publish-v1.11.44 (lib/config.js:161-175 there). At publish-v1.12.0 the pin does the same merge in
- * pick() (lib/config.js:246-300) and applies the defaults in list() (:423, :441-443): the vault
- * list first, then the site-file entries it lacks. One case differs, and this port is the stricter
- * reader of it: a vault-file key that is set but is not a list now yields the pin defaults plus the
- * site-file entries in the pin, and the site-file list alone here.
+ * The site config as the build hands it to the pin, for reading settings. The build always
+ * replaces outputDir with its own staging folder (src/build/stage.js), so the GM's outputDir is never
+ * judged by the pin's output-folder rule; leaving it out here keeps `check` from reporting a fault the
+ * build can never hit.
  */
-function unionExcludeList(primary, fallback, defaults) {
-  const sources = [primary, fallback].filter(Array.isArray);
-  if (sources.length === 0) return [...defaults];
-  const seen = new Set();
-  const out = [];
-  for (const list of sources) {
-    for (const item of list) {
-      const key = String(item).toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(item);
-      }
-    }
-  }
-  return out;
+function siteConfigForSettings(jsonConfig) {
+  const site = { ...(jsonConfig || {}) };
+  delete site.outputDir;
+  return site;
 }
 
 /**
- * The merged exclude_dirs list spelled the way the scanner spells a folder: each entry through the
- * pin's own normalizeExcludeDir (silently: `check` writes nothing to stderr), then de-duplicated
- * case-insensitively, first spelling kept. The pin's normalizeExcludeDirs (lib/config.js:147-160,
- * unexported) does exactly this to the list its pick() chose.
- */
-function normalizeExcludeDirs(list, vaultPath) {
-  const seen = new Set();
-  const out = [];
-  for (const item of list) {
-    const normalized = pinned.normalizeExcludeDir(item, vaultPath, false);
-    if (normalized == null) continue;
-    const key = normalized.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push(normalized);
-    }
-  }
-  return out;
-}
-
-/**
- * exclude_callouts as the pin's pick() chooses it (lib/config.js:192-236): an empty vault value
- * (null) says nothing; with both files set, the stricter wins (the pin's own stricterCallouts).
- */
-function pickExcludeCallouts(fromVaultRaw, fromSite) {
-  const fromVault = fromVaultRaw === null ? undefined : fromVaultRaw;
-  if (fromVault === undefined) return fromSite;
-  if (fromSite === undefined) return fromVault;
-  return pinned.stricterCallouts(fromVault, fromSite);
-}
-
-/**
- * A single publish.overrides.fields[path] entry is malformed if it is not a
- * map, or has a non-array/non-string-array "include". Ported from the
- * pin's (unexported) overrideEntryProblem, lib/config.js:339-351,
- * unmodified.
- */
-function overrideEntryProblem(value) {
-  if (value == null || typeof value !== 'object' || Array.isArray(value)) return true;
-  if (!('include' in value)) return false;
-  if (!Array.isArray(value.include)) return true;
-  if (!value.include.every((f) => typeof f === 'string')) return true;
-  return false;
-}
-
-/**
- * Canonicalizes publish.overrides.fields keys to NFC and drops malformed
- * entries. Ported from the pin's (unexported) canonicalizeOverrideFieldKeys,
- * lib/config.js:307-333 — minus the console.warn calls, which would write
- * to stderr during `check` (rejected in Structural decision 1); a dropped
- * entry is still dropped, just silently from Scriptorium's side.
- */
-function canonicalizeOverrideFieldKeys(fields) {
-  if (fields == null) return {};
-  if (typeof fields !== 'object' || Array.isArray(fields)) return {};
-  const out = {};
-  for (const [key, value] of Object.entries(fields)) {
-    if (overrideEntryProblem(value)) continue;
-    out[pinned.canonicalNfc(key)] = value;
-  }
-  return out;
-}
-
-/**
- * publishModeFrom() in lib/config.js:110-116, ported because the pin does not export it: case and
- * spaces forgiven, anything but "player" or "full" read as "player", only a missing setting left
- * at the default. The pin also warns about a bad value; check does not print, so this does not.
+ * The vault's settings as the pinned build reads them. Up to publish-v1.21.0 this was a hand port
+ * of the pin's config merge. At publish-v1.26.0 the pin's reader changed in ways a port would have
+ * to follow line by line (a site-file hiding list now adds to the built-in list, upstream #371;
+ * `no`, `off`, `yes` and `on` are switch words; and a hiding setting it cannot read stops the
+ * build), so `check` now asks the pin's own loader, through src/generator/pinned.js's
+ * readPublishSettings, and hands it the settings file's text read here through src/vault/read.js
+ * (so a failing disk still aborts, and the panel's edited copy is still what is read, ADR 0041).
+ * The build's read shim strips Obsidian comments and dataview blocks from a note's body only, never
+ * its frontmatter (src/vault/comments.js, src/vault/dataview.js), so the text is handed over as read.
  *
- * @param {unknown} raw publish.mode as written
- * @returns {'player'|'full'}
- */
-function publishModeFrom(raw) {
-  if (raw === undefined) return pinned.PUBLISH_DEFAULTS.mode;
-  const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : null;
-  return mode === 'player' || mode === 'full' ? mode : 'player';
-}
-
-/**
- * The subset of loadPublishConfig() (lib/config.js:409-535) Scriptorium
- * needs: mode, system, exclude_drafts, exclude_callouts, the three unioned
- * exclude lists, and overrides.fields. Also returns `configSources`: the
- * RAW (un-defaulted, un-unioned) list each surface supplied, or undefined —
- * config/exclude-dirs-divergence needs the vault's raw exclude_dirs, never
- * the merged union, because PUBLISH_DEFAULTS.exclude_dirs entries are not
- * vault entries (see checks/configdiv.js).
+ * Returns the subset Scriptorium reads (mode, system, the hiding switches and lists, the field
+ * exceptions), with the pin's `layout` and `withheld_words` carried as non-enumerable fields as the
+ * pin carries them. Also returns:
+ *   - `configSources`: the RAW (un-defaulted, un-merged) list each file supplied, or undefined.
+ *     config/exclude-*-divergence needs the vault's own list, never the merged one.
+ *   - `stops`: the pin's stop-level faults, each with its `message`, exactly the faults that make
+ *     the build refuse to run (lib/config.js assertNoStops). config/hiding-setting-fault reports them.
  *
- * @returns {{ publishConfig: object, configSources: object }}
+ * A settings file the pin cannot parse makes the pin throw; the build then stops with that error.
+ * Here it is read as if the file held no settings (as the port did), and frontmatter/parse-error
+ * reports the file.
+ *
+ * @returns {{ publishConfig: object, configSources: object, stops: object[] }}
  */
 function loadPublishConfig(vaultPath, jsonConfig = {}) {
   const configFile = path.join(vaultPath, '_meta', 'vault-config.md');
   let publish = {};
+  let text = null;
 
   if (read.pathExists(configFile)) {
-    const result = read.readFrontmatter(configFile);
-    if (result.ok && result.data.publish) {
-      publish = result.data.publish;
+    text = read.readText(configFile);
+    const parsed = read.parseFrontmatterText(text);
+    if (parsed.ok && parsed.data && parsed.data.publish && typeof parsed.data.publish === 'object') {
+      publish = parsed.data.publish;
     }
   }
 
-  const asList = (v) => (Array.isArray(v) ? v : undefined);
+  const site = siteConfigForSettings(jsonConfig);
+  let settings;
+  try {
+    settings = pinned.readPublishSettings(vaultPath, site, text);
+  } catch (err) {
+    if (text === null) throw err;
+    settings = pinned.readPublishSettings(vaultPath, site, null);
+  }
+  const pc = settings.config;
 
   const publishConfig = {
-    mode: publishModeFrom(publish.mode),
-    system: publish.system || null,
-    exclude_drafts: publish.exclude_drafts ?? pinned.PUBLISH_DEFAULTS.exclude_drafts,
-    exclude_callouts: pickExcludeCallouts(publish.exclude_callouts, jsonConfig.excludeCallouts) ?? pinned.PUBLISH_DEFAULTS.exclude_callouts,
-    exclude_sections: unionExcludeList(
-      publish.exclude_sections,
-      jsonConfig.excludeSections,
-      pinned.PUBLISH_DEFAULTS.exclude_sections,
-    ),
-    exclude_fields: unionExcludeList(
-      publish.exclude_fields,
-      jsonConfig.excludeFields,
-      pinned.PUBLISH_DEFAULTS.exclude_fields,
-    ),
-    exclude_dirs: normalizeExcludeDirs(unionExcludeList(
-      publish.exclude_dirs,
-      jsonConfig.excludeDirs,
-      pinned.PUBLISH_DEFAULTS.exclude_dirs,
-    ), vaultPath),
-    overrides: {
-      fields: canonicalizeOverrideFieldKeys(
-        (publish.overrides && publish.overrides.fields) ?? pinned.PUBLISH_DEFAULTS.overrides.fields,
-      ),
-    },
+    mode: pc.mode,
+    system: pc.system == null ? null : pc.system,
+    exclude_drafts: pc.exclude_drafts,
+    exclude_callouts: pc.exclude_callouts,
+    exclude_sections: pc.exclude_sections,
+    exclude_fields: pc.exclude_fields,
+    exclude_dirs: pc.exclude_dirs,
+    overrides: { fields: (pc.overrides && pc.overrides.fields) || {} },
   };
+  // decidePage names a setting as this vault's file writes it (lib/publish-decision.js), from `layout`.
+  Object.defineProperty(publishConfig, 'layout', { value: pc.layout, enumerable: false });
+  Object.defineProperty(publishConfig, 'withheld_words', { value: pc.withheld_words, enumerable: false });
 
+  const asList = (v) => (Array.isArray(v) ? v : undefined);
   const configSources = {
     vault: {
       exclude_sections: asList(publish.exclude_sections),
@@ -246,7 +165,7 @@ function loadPublishConfig(vaultPath, jsonConfig = {}) {
     },
   };
 
-  return { publishConfig, configSources };
+  return { publishConfig, configSources, stops: settings.stops };
 }
 
 // ---------------------------------------------------------------------------

@@ -156,6 +156,67 @@ function normalizeExcludeDir(entry, vaultPath, say) {
   return settingsFolders.normalizeExcludeDir(entry, vaultPath, typeof say === 'function' ? say : () => {});
 }
 
+// lib/config.js:83-268 (loadPublishConfig) and lib/settings/faults.js:68 (stops): how the build reads a
+// vault's settings, and which of its faults stop the build (lib/config.js:272-282, assertNoStops).
+// lib/settings/layout.js:10-11 names the two settings files.
+const pinConfig = require('gm-apprentice-publish/lib/config');
+const settingsLayout = require('gm-apprentice-publish/lib/settings/layout');
+const { stops: stopFaults } = require('gm-apprentice-publish/lib/settings/faults');
+
+/**
+ * The pin's own reading of a vault's settings (lib/config.js's loadPublishConfig), with the settings
+ * file's text supplied by the caller instead of read from disk by the pin.
+ *
+ * The pin's reader opens `_meta/vault-config.md` itself, with fs (lib/settings/legacy.js:241-243,
+ * lib/settings/layout.js:45-48). `check` reads every vault file through src/vault/read.js, which
+ * aborts on a failing disk and, for the admin panel, serves an edited copy in place of the file
+ * (ADR 0041). So for the length of this one synchronous call, fs.existsSync and fs.readFileSync
+ * answer for exactly two paths: the old settings file, from `oldFileText` (null: absent), and the
+ * new one, `_meta/vault-config.yaml`, always absent, because Scriptorium refuses a moved vault before
+ * it reads settings at all. Every other path goes to the real fs, and both functions are restored in
+ * a `finally`, so nothing outside this call ever sees the change (the pattern of
+ * src/generator/bootstrap.js's vault read shim).
+ *
+ * The pin prints nothing here: its warn function is a no-op and stops are kept quiet.
+ *
+ * @param {string} vaultPath
+ * @param {object} siteConfig the site's vault.config.json, as the build is given it
+ * @param {string|null} oldFileText the text of _meta/vault-config.md, or null when there is none
+ * @returns {{ config: object, stops: object[] }} the pin's publishConfig and its stop-level faults
+ * @throws whatever the pin throws for a settings file it cannot parse
+ */
+function readPublishSettings(vaultPath, siteConfig, oldFileText) {
+  const served = new Map([
+    [path.resolve(settingsLayout.at(vaultPath, settingsLayout.OLD_FILE)), typeof oldFileText === 'string' ? oldFileText : null],
+    [path.resolve(settingsLayout.at(vaultPath, settingsLayout.NEW_FILE)), null],
+  ]);
+  const servedFor = (p) => (typeof p === 'string' && served.has(path.resolve(p)) ? served.get(path.resolve(p)) : undefined);
+  const realExists = fs.existsSync;
+  const realRead = fs.readFileSync;
+  fs.existsSync = function servedExistsSync(p) {
+    const text = servedFor(p);
+    return text === undefined ? realExists.apply(fs, arguments) : text !== null;
+  };
+  fs.readFileSync = function servedReadFileSync(p, options) {
+    const text = servedFor(p);
+    if (text === undefined) return realRead.apply(fs, arguments);
+    if (text === null) {
+      const err = new Error(`ENOENT: no such file or directory, open '${p}'`);
+      err.code = 'ENOENT';
+      throw err;
+    }
+    const encoding = typeof options === 'string' ? options : options && options.encoding;
+    return encoding ? text : Buffer.from(text, 'utf8');
+  };
+  try {
+    const config = pinConfig.loadPublishConfig(vaultPath, siteConfig, () => {}, { quietStops: true });
+    return { config, stops: stopFaults(config.faults || []) };
+  } finally {
+    fs.existsSync = realExists;
+    fs.readFileSync = realRead;
+  }
+}
+
 // lib/settings/registry.js:685 (module.exports). At publish-v1.26.0 the pin dropped PUBLISH_DEFAULTS:
 // each setting's default now lives on its entry in the settings registry. Scriptorium still reads
 // the old shape (check's config models, the panel, the reference pages), so it is rebuilt here from
@@ -367,6 +428,7 @@ module.exports = {
   ALWAYS_EXCLUDE_DIRS,
   parseManifest,
   PUBLISH_DEFAULTS,
+  readPublishSettings,
   vaultRelPath,
   scanConfigFor,
   normalizeExcludeDir,
