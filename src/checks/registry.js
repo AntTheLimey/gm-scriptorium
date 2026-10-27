@@ -190,7 +190,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A pin default excluded section (lib/config.js:17) is silently dropped because vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them (lib/config.js:246-300, :441-443). ERROR if the heading actually renders in a published page.',
+      'A pin default excluded section (lib/settings/registry.js, player_site.hide.sections) is silently dropped because _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them. A list only in vault.config.json adds to the defaults (lib/settings/legacy.js pick, from publish-v1.26.0). ERROR if the heading actually renders in a published page.',
   },
   {
     id: 'config/exclude-dirs-divergence',
@@ -209,7 +209,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A list from either config surface replaces the pin\'s default exclude_fields (lib/config.js:18: secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability) instead of extending it, so an un-renamed default is no longer filtered.',
+      'A list in _meta/vault-config.md replaces the pin\'s default exclude_fields (secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability) instead of extending it, so an un-renamed default is no longer filtered. A list only in vault.config.json adds to the defaults (lib/settings/legacy.js pick, from publish-v1.26.0).',
   },
   {
     id: 'config/hiding-setting-fault',

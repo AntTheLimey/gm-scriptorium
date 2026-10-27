@@ -7,7 +7,13 @@ const { hubBodyWithheld } = require('./sessionmodel');
 
 /*
  * L6, the config-surface-divergence class (Engineering Brief section 7),
- * re-ported against the pin (Track DEP-b). Two config surfaces exist:
+ * re-ported against the pin (Track DEP-b).
+ *
+ * From publish-v1.26.0 (upstream #371, lib/settings/legacy.js pick) a list in vault.config.json
+ * with none in _meta/vault-config.md ADDS to the built-in list; only a list in the vault file
+ * replaces it. The checks below read the effective list from the pin's own loader, so a
+ * site-file-only list drops no default and they report nothing for it; their messages name the
+ * vault file, the one list that can drop a default. The history below is kept for the record. Two config surfaces exist:
  * vault.config.json (outside the vault) and _meta/vault-config.md's
  * `publish:` block (inside it). lib/config.js:246-300's pick (unionExcludeList up to publish-v1.11.44)
  * genuinely unions exclude_sections/exclude_fields/exclude_dirs from BOTH
@@ -76,7 +82,7 @@ function runExcludeSectionsDivergence(ctx) {
         severity: fires ? 'error' : 'warn',
         category: 'config',
         campaign: ctx.campaign,
-        message: `"## ${section}" is one of the default excluded sections, but vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded${
+        message: `"## ${section}" is one of the default excluded sections, but _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded${
           fires ? ' and the heading renders in published output' : ''
         }`,
         data: { section, appliesInOutput: fires },
@@ -188,7 +194,7 @@ function runExcludeFieldsDivergence(ctx) {
         severity: 'warn',
         category: 'config',
         campaign: ctx.campaign,
-        message: `default excluded field "${defaultField}" is no longer filtered; a vault.config.json or _meta/vault-config.md exclude_fields list replaced the default list instead of extending it`,
+        message: `default excluded field "${defaultField}" is no longer filtered; the _meta/vault-config.md exclude_fields list replaced the default list instead of extending it`,
         data: { field: defaultField, occurrences: { [defaultField]: exactCount, [camel]: camelCount } },
       }),
     );
