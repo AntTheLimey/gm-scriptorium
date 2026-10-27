@@ -95,7 +95,7 @@ ADR 0013 is unchanged and still fails closed.
 
 Upstream now withholds a stub page's excluded sections itself, so the guard is gone. The heading
 collision this record was about behaves as before. Two other cases change, because the pin's strips
-now run before the cut, the order full pages already used:
+now run before the cut, the same sequence full pages already used:
 
 - **Less publishes.** A gm-only block that opens under a withheld heading and closes after a kept one
   is withheld whole. Kept on this pin, the guard would publish its tail (see below).
