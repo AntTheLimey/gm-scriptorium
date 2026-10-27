@@ -90,13 +90,14 @@ function withoutReportedUnmapped(generatorWarnings, reportedDirs) {
 const SCAFFOLD_KEY_RE = /^(siteTitle|landingTagline|attachmentsDir|folderMap|excludeDirs|excludeSections|excludeCallouts|backend)( \(ignored; the vault file sets it\))?$/;
 const LEGACY_PREFIX = 'WARNING: vault.config.json still holds campaign settings: ';
 const LEGACY_SUFFIX = '. Settings left in vault.config.json are planned to stop being read in plugin 1.11.0. Run `migrate.py <vault>` to move them.';
-const STATUS_BAR_OLD_NAME = 'WARNING: backend.statusBar is an old name; use publish.live_stats.';
+// Matched up to the setting's name, which Scriptorium never writes (test/live-stats-off.test.js).
+const STATUS_BAR_OLD_NAME_PREFIX = 'WARNING: backend.statusBar is an old name; use publish.';
 const INBOX_OLD_NAME = 'WARNING: backend.inbox is an old name; use publish.inbox.';
 const LANDING_TAGLINE_OLD_NAME = 'WARNING: landingTagline is an old name; use publish.theme.tagline.';
 function withoutScaffoldNoise(generatorWarnings, siteConfig) {
   const backend = (siteConfig && siteConfig.backend) || {};
   return generatorWarnings.filter((line) => {
-    if (line === STATUS_BAR_OLD_NAME && backend.statusBar === false) return false;
+    if (line.startsWith(STATUS_BAR_OLD_NAME_PREFIX) && backend.statusBar === false) return false;
     if (line === INBOX_OLD_NAME && backend.inbox === false) return false;
     if (line === LANDING_TAGLINE_OLD_NAME) return false;
     if (line.startsWith(LEGACY_PREFIX) && line.endsWith(LEGACY_SUFFIX)) {
