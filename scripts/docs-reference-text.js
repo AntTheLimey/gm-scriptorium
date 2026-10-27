@@ -1083,6 +1083,10 @@ module.exports = deepFreeze({
       what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because one of your config files gives its own `exclude_fields` list. A list you give replaces the built-in one.',
       action: 'Add the field named in the message to your `exclude_fields` list.',
     },
+    'config/hiding-setting-fault': {
+      what: 'A setting that hides something from players cannot be read, or a name that looks like one is misspelt or in the wrong place. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, or a `mode:` other than `player` or `full`. The generator will not build until it is fixed, because its safe guess might not be what you meant. The message is the generator\'s own.',
+      action: 'Fix the setting the message names. `on`, `off`, `yes`, `no`, `true` and `false` all work for a switch, and a list needs one entry per line.',
+    },
     'config/site-vault-path-mismatch': {
       what: 'The site config\'s `vaultPath` points at a different folder from the vault GM-Scriptorium is using. The vault from your settings file wins, so this is reported and nothing stops.',
       action: 'Remove `vaultPath` from the site config, or point it at the vault you mean.',

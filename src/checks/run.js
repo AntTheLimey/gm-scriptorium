@@ -39,6 +39,7 @@ const RUNNERS = {
   'config/exclude-sections-divergence': configdiv.runExcludeSectionsDivergence,
   'config/exclude-dirs-divergence': configdiv.runExcludeDirsDivergence,
   'config/exclude-fields-divergence': configdiv.runExcludeFieldsDivergence,
+  'config/hiding-setting-fault': configdiv.runHidingSettingFault,
   'config/site-vault-path-mismatch': configdiv.runSiteVaultPathMismatch,
   'config/pack-shadowed': configdiv.runPackShadowed,
   'config/theme-scheme-mismatch': themescheme.runThemeSchemeMismatch,

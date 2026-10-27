@@ -212,6 +212,15 @@ const CHECKS = Object.freeze([
       'A list from either config surface replaces the pin\'s default exclude_fields (lib/config.js:18: secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability) instead of extending it, so an un-renamed default is no longer filtered.',
   },
   {
+    id: 'config/hiding-setting-fault',
+    category: 'config',
+    defaultSeverity: 'error',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'A hiding setting (publish.mode, an exclude_ list or switch, overrides.fields, or the site file\'s excludeSections, excludeFields, excludeDirs or excludeCallouts) cannot be read, or a name that looks like one is misspelt or misplaced. The pinned generator refuses to build until it is fixed (lib/config.js assertNoStops), because its safe fallback might not be what the GM meant. The message is the generator\'s own.',
+  },
+  {
     id: 'config/site-vault-path-mismatch',
     category: 'config',
     defaultSeverity: 'warn',

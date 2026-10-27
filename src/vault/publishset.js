@@ -382,10 +382,11 @@ function pairStoryFiles(pages) {
  *   publishConfig: object,
  *   manifest: object|null,
  *   configSources: object,
+ *   stops: object[],
  * }}
  */
 function computePublishedSet(vaultPath, jsonConfig) {
-  const { publishConfig, configSources } = loadPublishConfig(vaultPath, jsonConfig);
+  const { publishConfig, configSources, stops } = loadPublishConfig(vaultPath, jsonConfig);
   const manifest = loadManifest(vaultPath);
   // lib/config.js's scanConfigFor(config, publishConfig): the scan must see the already-merged,
   // already-unioned exclude_dirs (vault-config.md's publish.exclude_dirs unioned with the site
@@ -412,6 +413,7 @@ function computePublishedSet(vaultPath, jsonConfig) {
     publishConfig,
     manifest,
     configSources,
+    stops,
   };
 }
 
