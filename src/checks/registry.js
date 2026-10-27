@@ -59,7 +59,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A file has no frontmatter `type`. scanVault silently skips such a file (lib/scanner.js:135); this is how content disappears without a message.',
+      'A file has no frontmatter `type`. scanVault silently skips such a file (lib/scanner.js:136); this is how content disappears without a message.',
   },
   {
     id: 'census/type',
@@ -171,7 +171,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A relationship edge sets gm_only to something other than true or false (yes, on, "True", 1, an empty value). The pinned generator hides an edge only when gm_only is exactly true or the string "true" (lib/processor.js:1085-1087), so any other value publishes it. ERROR when the edge survives the pin\'s own publishedFrontmatter on a published page, with the same exclude_fields and per-file overrides (lib/processor.js:1099-1134); WARN otherwise.',
+      'A relationship edge sets gm_only to something other than true or false (yes, on, "True", 1, an empty value). The pinned generator hides an edge only when gm_only is exactly true or the string "true" (lib/processor.js:1430-1432), so any other value publishes it. ERROR when the edge survives the pin\'s own publishedFrontmatter on a published page, with the same exclude_fields and per-file overrides (lib/processor.js:1452-1487); WARN otherwise.',
   },
   {
     id: 'vault/unmapped-directory',
@@ -180,7 +180,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A directory has no folderMap entry and is not the vault root, so scanVault silently drops every file under it (lib/scanner.js:137-147). A third silent-drop path found during the Architect pass.',
+      'A directory has no folderMap entry and is not the vault root, so scanVault silently drops every file under it (lib/scanner.js:138-148). A third silent-drop path found during the Architect pass.',
   },
   {
     id: 'config/exclude-sections-divergence',
@@ -245,7 +245,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'The pack.toml theme is built for one colour scheme (theme.json "scheme") but the vault palette resolves to the other, by the generator\'s own light/dark rule (lib/theme.js:188) applied after its palette merge (lib/config.js:485-487). Text and surfaces may clash. Never fires for the plain theme, without a pack.toml, or when a genre preset owns the palette.',
+      'The pack.toml theme is built for one colour scheme (theme.json "scheme") but the vault palette resolves to the other, by the generator\'s own light/dark rule (lib/theme.js:182) applied after its palette merge (lib/config.js:130-156). Text and surfaces may clash. Never fires for the plain theme, without a pack.toml, or when a genre preset owns the palette.',
   },
   {
     id: 'leak/l1-no-manifest',
@@ -264,7 +264,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:45). A file under images/ that is byte-identical to a cover picture or section banner the generator copies there (lib/build.js) is judged by that real source instead of being read back to the attachments folder: WARN when the GM named it in publish.theme.campaign_image or banners, ERROR when the banner was an auto-found _banner.* (ADR 0061). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
+      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:47). A file under images/ that is byte-identical to a cover picture or section banner the generator copies there (lib/build.js) is judged by that real source instead of being read back to the attachments folder: WARN when the GM named it in publish.theme.campaign_image or banners, ERROR when the banner was an auto-found _banner.* (ADR 0061). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
   },
   {
     id: 'leak/l3-unpublished-link',

@@ -20,7 +20,7 @@
  *
  * `lunr` is the one export here that is not a generator internal — it is the
  * search-index library gm-apprentice-publish depends on directly
- * (lib/search-index.js:3, lib/build.js:633). Track D2's index-term leak
+ * (lib/search-index.js:3, lib/build.js:856). Track D2's index-term leak
  * check (src/checks/leak/outputscan.js) has to reproduce the generator's own
  * lunr pipeline (trimmer, stopWordFilter, stemmer) byte-for-byte to decide
  * whether a withheld name is reachable as a stemmed or possessive term in
@@ -85,7 +85,7 @@ installNetworkGuard();
 const { applyRedactions } = require('./redactions');
 applyRedactions();
 
-// lib/processor.js:1776 (module.exports)
+// lib/processor.js:2265 (module.exports)
 const {
   stripDataview,
   stripGmOnly,
@@ -97,16 +97,16 @@ const {
   keepOnlySections,
   publishedFrontmatter,
   publishMode,
-  // dateText (publish-v1.17.0 use) is how the pin prints a YAML date (lib/processor.js:17-19), which
+  // dateText (publish-v1.17.0 use) is how the pin prints a YAML date (lib/processor.js:19-21), which
   // src/build/dates.js matches to put the "D Month YYYY" form back.
   dateText,
   // gmAliasRewriter (publish-v1.21.0 use) is how the pin rewrites every GM alias to its owner's title
-  // before anything renders (lib/processor.js:1631, run by pairHubs at lib/build.js:546);
+  // before anything renders (lib/processor.js:2094, run by pairHubs at lib/build.js:754-755);
   // src/build/connections.js applies it before resolving a note's own relationships.
   gmAliasRewriter,
   // L5 (ADR 0045) reads headings as the generator does: findHeadings is the parser reading
-  // (lib/processor.js:204-247), renderInline the build's own inline renderer (lib/processor.js:251-253),
-  // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:91-115). Re-exported, never re-implemented.
+  // (lib/processor.js:242-285), renderInline the build's own inline renderer (lib/processor.js:289-291),
+  // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:93-117). Re-exported, never re-implemented.
   findHeadings,
   renderInline,
   resolveWikiLinks,
@@ -116,12 +116,12 @@ const {
  * Issue #100 (ADR 0042) is retired at publish-v1.17.0. Scriptorium used to replace the pin's
  * keepOnlySections with a guard that withheld an excluded parent's sub-headings on a stub page.
  * The pin now does this itself (#320 there): keepOnlySections and stubCut take the build's
- * `withhold` object (lib/processor.js:474) and run a note's strips, then its exclude list, then the
- * cut. Callers must pass that object, as lib/build.js:591 does; without excludeSections nothing is
+ * `withhold` object (lib/processor.js:524) and run a note's strips, then its exclude list, then the
+ * cut. Callers must pass that object, as lib/build.js:799 does; without excludeSections nothing is
  * withheld. The real-build proof is test/stub-heading-collision.test.js.
  */
 
-// lib/publish-decision.js:220-229 (module.exports)
+// lib/publish-decision.js:295-309 (module.exports)
 const {
   decidePage,
   publishesPage,
@@ -156,8 +156,8 @@ function normalizeExcludeDir(entry, vaultPath, say) {
   return settingsFolders.normalizeExcludeDir(entry, vaultPath, typeof say === 'function' ? say : () => {});
 }
 
-// lib/config.js:83-268 (loadPublishConfig) and lib/settings/faults.js:68 (stops): how the build reads a
-// vault's settings, and which of its faults stop the build (lib/config.js:272-282, assertNoStops).
+// lib/config.js:93-242 (loadPublishConfig) and lib/settings/faults.js:69 (stops): how the build reads a
+// vault's settings, and which of its faults stop the build (lib/config.js:246-255, assertNoStops).
 // lib/settings/layout.js:10-11 names the two settings files.
 const pinConfig = require('gm-apprentice-publish/lib/config');
 const settingsLayout = require('gm-apprentice-publish/lib/settings/layout');
@@ -285,7 +285,7 @@ const DEFAULT_WITHHELD_WORDS = deepFreeze({
   thing: settingsRegistry.entry('player_site.withheld_words.thing').default,
 });
 
-// lib/scanner.js:450 (module.exports). buildLinkMap (publish-v1.21.0 use) is the pin's own name-to-page
+// lib/scanner.js:457 (module.exports). buildLinkMap (publish-v1.21.0 use) is the pin's own name-to-page
 // table, which src/build/connections.js resolves relationship targets against. dirIsExcluded is FR-16/SD-19's new export: the pin's own
 // case-insensitive excludeDirs matcher (matchExcludedDir), used by src/vault/publishset.js so its
 // hand-ported directory-skip test can never drift from the pin's own casing rule.
@@ -324,15 +324,15 @@ const { labelsForLinks, linkText, wikilinkRe, parseWikilink } = require('gm-appr
 
 // lib/frontmatter.js:155 and lib/frontmatter-shape.js:110 (module.exports). New at
 // publish-v1.17.0: the scanner cuts comments out of frontmatter values, then puts wrongly typed values
-// into shape or leaves them unread (lib/scanner.js:126-128); src/vault/publishset.js does the same.
+// into shape or leaves them unread (lib/scanner.js:127-129); src/vault/publishset.js does the same.
 const { cutValueComments } = require('gm-apprentice-publish/lib/frontmatter');
 const { shapeFrontmatter } = require('gm-apprentice-publish/lib/frontmatter-shape');
 
 // lib/unicode.js:93 (module.exports)
 const { canonicalNfc, truncateGraphemes } = require('gm-apprentice-publish/lib/unicode');
 
-// lib/templates/base.js:244-265 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
-// resolves a banner for (lib/build.js:1413), read by src/vault/imagecopies.js.
+// lib/templates/base.js:245-266 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
+// resolves a banner for (lib/build.js:1692), read by src/vault/imagecopies.js.
 const { metadataBadgesFor, TYPE_BADGE_FIELDS, DIR_LABELS } = require('gm-apprentice-publish/lib/templates/base');
 
 // lib/banners.js:109-114 (module.exports). ADR 0061: the pin's own banner-entry reader, folder lookup,
@@ -389,7 +389,7 @@ fmguard.verifyFrontmatterEngineGuard(parseManifest, generatorGrayMatter);
 
 /**
  * The pin's scaffold vault.config.json template, raw (ADR 0021). Located
- * the same way the pin's own `init()` locates it (lib/init.js:9), but
+ * the same way the pin's own `init()` locates it (lib/init.js:8), but
  * anchored on `require.resolve('gm-apprentice-publish/lib/processor.js')`
  * rather than `__dirname`: this facade is the one Scriptorium module
  * allowed to deep-require the pin's internals, and processor.js is already

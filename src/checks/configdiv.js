@@ -13,19 +13,20 @@ const { hubBodyWithheld } = require('./sessionmodel');
  * with none in _meta/vault-config.md ADDS to the built-in list; only a list in the vault file
  * replaces it. The checks below read the effective list from the pin's own loader, so a
  * site-file-only list drops no default and they report nothing for it; their messages name the
- * vault file, the one list that can drop a default. The history below is kept for the record. Two config surfaces exist:
+ * vault file, the one list that can drop a default (lib/settings/legacy.js:86-139, pick). The
+ * history below is kept for the record. Two config surfaces exist:
  * vault.config.json (outside the vault) and _meta/vault-config.md's
- * `publish:` block (inside it). lib/config.js:246-300's pick (unionExcludeList up to publish-v1.11.44)
- * genuinely unions exclude_sections/exclude_fields/exclude_dirs from BOTH
+ * `publish:` block (inside it). Up to publish-v1.21.0 the pin's pick (unionExcludeList up to
+ * publish-v1.11.44) unioned exclude_sections/exclude_fields/exclude_dirs from BOTH
  * surfaces (case-insensitively de-duplicated) — it does NOT let one side
- * win outright — but falls back to PUBLISH_DEFAULTS (lib/config.js:17-18)
- * ONLY when NEITHER surface supplies a list at all. So supplying a list
+ * win outright — but fell back to PUBLISH_DEFAULTS
+ * ONLY when NEITHER surface supplied a list at all. So supplying a list
  * from either surface silently drops every pin default that list doesn't
  * also name, which is what runExcludeSectionsDivergence and
  * runExcludeFieldsDivergence below report.
  *
  * exclude_dirs is different again, and changed at publish-v1.11.40 (Δ, #209 follow-up):
- * lib/build.js:400 now calls lib/config.js's scanConfigFor(config, publishConfig) before
+ * lib/build.js:585 (from publish-v1.26.0) calls lib/config.js's scanConfigFor(config, publishConfig) before
  * scanVault, so the walk sees the merged, unioned exclude_dirs, not the raw vault.config.json
  * object. A vault-only publish.exclude_dirs entry now genuinely gates a fresh build's walk too.
  * See runExcludeDirsDivergence's own doc comment for what this check still catches.
@@ -55,12 +56,11 @@ function headingSurvives(ctx, sectionName) {
 }
 
 /**
- * exclude_sections: when EITHER config surface supplies its own list, a pin
- * default (PUBLISH_DEFAULTS.exclude_sections, lib/config.js:17) that list
- * doesn't re-name is silently dropped from the effective union
- * (lib/config.js:246-300's pick (unionExcludeList up to publish-v1.11.44), with the list() fallback at :396,
- * :441-443, only falls back to the defaults
- * when NEITHER surface supplies a list). ERROR if the heading actually
+ * exclude_sections: when _meta/vault-config.md supplies its own list, a pin
+ * default (PUBLISH_DEFAULTS.exclude_sections, the registry's player_site.hide.sections) that list
+ * doesn't re-name is silently dropped from the effective list (lib/settings/legacy.js:86-139's
+ * pick; a list only in vault.config.json is added to the defaults, :117-120). Up to
+ * publish-v1.21.0 a list in either file dropped them. ERROR if the heading actually
  * renders in a published page; WARN otherwise. When neither surface
  * supplies a list, the defaults apply in full and nothing is missing, so
  * this reports nothing.
@@ -168,11 +168,11 @@ function toCamelCase(snake) {
 }
 
 /**
- * exclude_fields: PUBLISH_DEFAULTS.exclude_fields (lib/config.js:18, now
- * secrets/current_plan/plan_progress/gm_notes/prep_notes/reliability) is only used
- * whole when neither surface supplies its own exclude_fields list; a list
- * from EITHER surface replaces the defaults instead of extending them
- * (lib/config.js:246-300's pick (unionExcludeList up to publish-v1.11.44)).
+ * exclude_fields: PUBLISH_DEFAULTS.exclude_fields (the registry's player_site.hide.fields:
+ * secrets/current_plan/plan_progress/gm_notes/prep_notes/reliability) is used whole unless
+ * _meta/vault-config.md supplies its own exclude_fields list, which replaces the defaults instead
+ * of extending them (lib/settings/legacy.js:86-139's pick). A list only in vault.config.json is
+ * added to them from publish-v1.26.0 (:117-120); before, a list from either file replaced them.
  */
 function runExcludeFieldsDivergence(ctx) {
   const effective = new Set(ctx.publishSet.publishConfig.exclude_fields || []);

@@ -193,7 +193,7 @@ function loadManifest(vaultPath) {
 // ---------------------------------------------------------------------------
 
 /**
- * Mirrors the walk's directory-skip test, lib/scanner.js:112
+ * Mirrors the walk's directory-skip test, lib/scanner.js:113
  * (`dirIsExcluded(relPath, excludeDirs) || entry.name.startsWith('.')`). The excludeDirs half is
  * required through the facade's `dirIsExcluded` (the pin's own case-insensitive matcher, lib/
  * scanner.js's matchExcludedDir) rather than hand-re-implemented, so this can never drift from
@@ -205,13 +205,13 @@ function isExcludedDir(relPath, name, excludeDirs) {
 }
 
 /**
- * The walk (lib/scanner.js:80-191, scanVaultReport), ported to route every read
+ * The walk (lib/scanner.js:81-192, scanVaultReport), ported to route every read
  * through src/vault/read.js. Every .md file with a frontmatter `type` in a
  * folderMap-mapped directory (or the vault root) becomes a page. A file
  * whose folder is unmapped is silently dropped by the generator
- * (lib/scanner.js:137-147); this function records those in `unmappedDirectory`
+ * (lib/scanner.js:138-148); this function records those in `unmappedDirectory`
  * instead of dropping them, so vault/unmapped-directory can report them. A
- * file with no `type:` (lib/scanner.js:135) or unparseable frontmatter is
+ * file with no `type:` (lib/scanner.js:136) or unparseable frontmatter is
  * likewise recorded nowhere here — frontmatter/parse-error and
  * frontmatter/missing-type report those separately from ctx.index, not
  * from this module.
@@ -249,7 +249,7 @@ function scanForPublish(vaultPath, jsonConfig) {
       const result = read.readFrontmatter(absPath);
       if (!result.ok) continue; // frontmatter/parse-error reports this separately
       // The pin's own reading of the values: cycles broken, comments cut, then wrong types shaped or left
-      // unread (lib/scanner.js:126-128), so a `type:` it cannot read publishes nothing here either.
+      // unread (lib/scanner.js:127-129), so a `type:` it cannot read publishes nothing here either.
       const frontmatter = pinned.shapeFrontmatter(pinned.cutValueComments(uncycled(result.data))).frontmatter;
       if (!frontmatter.type) continue; // frontmatter/missing-type reports this separately
 
@@ -262,7 +262,7 @@ function scanForPublish(vaultPath, jsonConfig) {
       const baseName = path.basename(entry.name, '.md');
       // displayTitle: frontmatter title wins, read as a string with any wikilink
       // printed by its label, else the stem with underscores turned to spaces —
-      // lib/scanner.js:154, exactly (publish-v1.17.0 added the string and the label).
+      // lib/scanner.js:155, exactly (publish-v1.17.0 added the string and the label).
       const displayTitle = (frontmatter.title ? pinned.labelsForLinks(String(frontmatter.title)) : '') || baseName.replace(/_/g, ' ');
       const slug = pinned.slugify(baseName);
       const outputPath = outputDir ? `${outputDir}/${slug}.html` : `${slug}.html`;
@@ -313,13 +313,13 @@ function scanAllCandidatePages(vaultPath, jsonConfig) {
 }
 
 /**
- * pairStoryFiles() in lib/scanner.js:374-402, ported to route its reads through
+ * pairStoryFiles() in lib/scanner.js:378-406, ported to route its reads through
  * src/vault/read.js and to operate on this module's page shape. Splices a
  * PC's paired `<Name>_Story.md` out of `pages` (whether or not its own
  * frontmatter is parseable or typed `character-story`, matching the pin
  * exactly) and, when it IS a real character-story file, attaches its body
  * as `pc.storyMarkdown` / `pc.storySourcePath`. From publish-v1.12.3 the pin splices only when
- * the note at that path has a `type:` (isStoryCompanion, lib/scanner.js:370-372). `pages` holds
+ * the note at that path has a `type:` (isStoryCompanion, lib/scanner.js:374-376). `pages` holds
  * typed notes only, here and in the pin, so the result is the same and this port has no gate.
  *
  * Track D3 additions, only set when a real story is attached:
@@ -327,7 +327,7 @@ function scanAllCandidatePages(vaultPath, jsonConfig) {
  * directory — derived from `pc.relPath` rather than `vaultPath`, since
  * this function is never given one), `storyLineOffset` (the story file's
  * own frontmatter offset, `computeLineOffset`), and `storyOutputPath`
- * (`story/characters/<slug>.html`, mirroring `lib/build.js:1500`'s own
+ * (`story/characters/<slug>.html`, mirroring `lib/build.js:1809`'s own
  * `story/characters/${slugify(pc.title)}.html` exactly — required via
  * `pinned.slugify` so this can never drift from what the real build
  * writes).
@@ -363,17 +363,17 @@ function pairStoryFiles(pages) {
 }
 
 // ---------------------------------------------------------------------------
-// build.js's verdict loop (gm-apprentice-publish lib/published-pages.js:10-17, called from
-// lib/build.js:469-471; up to publish-v1.12.2 the loop sat in lib/build.js itself)
+// build.js's verdict loop (gm-apprentice-publish lib/published-pages.js:12-25, called from
+// lib/build.js:654-657; up to publish-v1.12.2 the loop sat in lib/build.js itself)
 // ---------------------------------------------------------------------------
 
 /**
  * The full published-set derivation: scan, then one verdict per page from
- * the pin's own decidePage (lib/published-pages.js:14 — called with `rel`,
+ * the pin's own decidePage (lib/published-pages.js:20 — called with `rel`,
  * `publishConfig`, `manifest`, and deliberately NO `pageIndex`: the build
  * never passes one either, so a STORY_COMPANION verdict — which needs
  * pageIndex — is never produced here, matching the build exactly), then
- * publishesPage (lib/published-pages.js:16) to bucket into published/unpublished.
+ * publishesPage (lib/published-pages.js:22) to bucket into published/unpublished.
  *
  * @returns {{
  *   publishedPages: object[],

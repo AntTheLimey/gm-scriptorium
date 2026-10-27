@@ -123,8 +123,8 @@ function readCxData(regionHtml) {
  * paths the way the pin's Connections model resolves them (lib/connections.js:159-169), against the
  * pin's own link table. Decides only whether a connection is this page's own (a tie) or the other
  * page's (named by); every word the lane prints comes from the pin's section. As in the pin, the link
- * table is built from the raw frontmatter (lib/build.js:535), then every GM alias is rewritten to its
- * owner's title (`rewriter`, lib/build.js:546), then the frontmatter is reduced to its published view.
+ * table is built from the raw frontmatter (lib/build.js:737), then every GM alias is rewritten to its
+ * owner's title (`rewriter`, lib/build.js:748), then the frontmatter is reduced to its published view.
  *
  * @param {object[]} publishedPages
  * @param {object} publishConfig
