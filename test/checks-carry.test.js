@@ -28,7 +28,8 @@ const { moveVaultCopy } = require('./helpers/moved-vault');
 
 const SAMPLE = path.join(__dirname, '..', 'examples', 'the-long-lease');
 const CARRY_IDS = ['config/pack-hiding-not-carried', 'config/pack-setting-not-carried', 'config/pack-setting-differs'];
-const CARRY_HINT = 'Run "gm-scriptorium carry <campaign>" to move it into the vault\'s settings.';
+// The context is built with the campaign name 'x'.
+const CARRY_HINT = 'Run "gm-scriptorium carry x" to move it into the vault\'s settings.';
 
 function writePack(root, pack) {
   const dir = path.join(root, 'pack');
@@ -185,6 +186,30 @@ test('a yaml the pin cannot parse stops the context with the pin\'s own words, a
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('callouts: the pin keeps the vault\'s value unless the pack is stricter, in the pin\'s own argument order', () => {
+  assert.equal(isHeldByVault('excludeCallouts', ['b'], ['a', 'b']), true);
+  assert.equal(isHeldByVault('excludeCallouts', ['Spoiler'], ['spoiler']), true);
+  assert.equal(isHeldByVault('excludeCallouts', 'yes', true), true);
+  assert.equal(isHeldByVault('excludeCallouts', ['a'], false), false);
+  assert.equal(isHeldByVault('excludeCallouts', ['a', 'c'], ['a']), false);
+  assert.equal(isHeldByVault('excludeCallouts', true, ['a']), false);
+});
+
+test('sections are held as the build matches headings: case does not matter, a different name does', () => {
+  assert.equal(isHeldByVault('excludeSections', ['gm notes'], ['GM Notes']), true);
+  assert.equal(isHeldByVault('excludeSections', ['GM Notes', 'Secrets'], ['GM Notes']), false);
+});
+
+test('the carry findings are worked out once per context, not once per id', (t) => {
+  const fresh = findingsFor({ searchEnabled: true, excludeSections: ['Pack Only Secret'] }).ctx;
+  const ctx = { ...fresh }; // a new object, so nothing is cached for it yet
+  const spy = t.mock.method(pinned, 'settingFaults');
+  carry.runPackHidingNotCarried(ctx);
+  carry.runPackSettingNotCarried(ctx);
+  carry.runPackSettingDiffers(ctx);
+  assert.equal(spy.mock.callCount(), 1);
 });
 
 test('isHeldByVault: arrays by entry, callouts by stricterness, objects by key, the rest by equality', () => {

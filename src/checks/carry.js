@@ -24,7 +24,7 @@ const pinned = require('../generator/pinned');
  * carry. Nothing here writes to the vault.
  */
 
-const CARRY_HINT = 'Run "gm-scriptorium carry <campaign>" to move it into the vault\'s settings.';
+const carryHint = (campaign) => `Run "gm-scriptorium carry ${campaign}" to move it into the vault's settings.`;
 
 /** The value at a dotted name in a nested object, or undefined. */
 function valueAt(obj, dotted) {
@@ -47,6 +47,8 @@ function folderKey(entry, vaultPath) {
 
 /** The pack entries of a list that the vault's list lacks. Folders are compared as the scanner spells them. */
 function missingEntries(packKey, packList, vaultList, vaultPath) {
+  // A section is held as the build matches headings (its own reading of case, marks and spacing).
+  if (packKey === 'excludeSections') return packList.filter((e) => !pinned.titleNamedIn(String(e), vaultList));
   const key = packKey === 'excludeDirs' ? (e) => folderKey(e, vaultPath) : (e) => e;
   const held = new Set(vaultList.map(key));
   return packList.filter((e) => !held.has(key(e)));
@@ -66,7 +68,7 @@ function missingEntries(packKey, packList, vaultList, vaultPath) {
  * @returns {boolean}
  */
 function isHeldByVault(packKey, packValue, vaultValue, vaultPath) {
-  if (packKey === 'excludeCallouts') return isDeepStrictEqual(pinned.stricterCallouts(packValue, vaultValue), vaultValue);
+  if (packKey === 'excludeCallouts') return isDeepStrictEqual(pinned.stricterCallouts(vaultValue, packValue), vaultValue);
   if (Array.isArray(packValue)) {
     return Array.isArray(vaultValue) && missingEntries(packKey, packValue, vaultValue, vaultPath).length === 0;
   }
@@ -92,7 +94,13 @@ function show(value) {
  * The three carry checks share one read of the pin's faults and the vault's settings, so they are
  * produced together and split by id. Quiet on a legacy vault, where the pack is still read.
  */
+const cache = new WeakMap();
 function carryFindings(ctx) {
+  if (!cache.has(ctx)) cache.set(ctx, computeCarryFindings(ctx));
+  return cache.get(ctx);
+}
+
+function computeCarryFindings(ctx) {
   if (ctx.settingsLayout !== 'new' || !ctx.rawSiteConfig) return [];
   const files = readSettingsFiles(ctx.vaultPath);
   let faults;
@@ -124,7 +132,7 @@ function carryFindings(ctx) {
         ...base,
         id: 'config/pack-hiding-not-carried',
         severity: 'error',
-        message: `${fault.name} in the pack hides more than the vault's settings do (${fault.setting}), and the build no longer reads the pack, so ${what}. ${CARRY_HINT}`,
+        message: `${fault.name} in the pack hides more than the vault's settings do (${fault.setting}), and the build no longer reads the pack, so ${what}. ${carryHint(ctx.campaign)}`,
         data: { ...data, entries },
       }));
     } else if (settings.origins[fault.setting] === 'file') {
@@ -132,7 +140,7 @@ function carryFindings(ctx) {
         ...base,
         id: 'config/pack-setting-differs',
         severity: 'warn',
-        message: `${fault.name} in the pack is ${show(fault.value)}, but the vault's settings set ${fault.setting} to ${show(vaultValue)}; the vault's value is used. ${CARRY_HINT}`,
+        message: `${fault.name} in the pack is ${show(fault.value)}, but the vault's settings set ${fault.setting} to ${show(vaultValue)}; the vault's value is used. ${carryHint(ctx.campaign)}`,
         data,
       }));
     } else {
@@ -140,7 +148,7 @@ function carryFindings(ctx) {
         ...base,
         id: 'config/pack-setting-not-carried',
         severity: 'warn',
-        message: `${fault.name} in the pack is ${show(fault.value)}, but the vault's settings do not set ${fault.setting}, so the pack's value is not used. ${CARRY_HINT}`,
+        message: `${fault.name} in the pack is ${show(fault.value)}, but the vault's settings do not set ${fault.setting}, so the pack's value is not used. ${carryHint(ctx.campaign)}`,
         data,
       }));
     }
@@ -152,7 +160,7 @@ const only = (id) => (ctx) => carryFindings(ctx).filter((f) => f.id === id);
 
 module.exports = {
   isHeldByVault,
-  CARRY_HINT,
+  carryHint,
   runPackHidingNotCarried: only('config/pack-hiding-not-carried'),
   runPackSettingNotCarried: only('config/pack-setting-not-carried'),
   runPackSettingDiffers: only('config/pack-setting-differs'),

@@ -354,6 +354,8 @@ function stripMovedSettings(rawSiteConfig) {
 // lib/settings/legacy.js:455 (module.exports): the stricter of two exclude_callouts values (true beats a
 // list, a list beats off, two lists are unioned), so a carry never makes a callout publish.
 const { stricterCallouts } = require('gm-apprentice-publish/lib/settings/legacy');
+// lib/heading-key.js:176: whether a heading is named by any entry of a hide-sections list, as the build matches them.
+const { titleNamedIn } = require('gm-apprentice-publish/lib/heading-key');
 
 // lib/settings/registry.js:685 (module.exports). At publish-v1.26.0 the pin dropped PUBLISH_DEFAULTS:
 // each setting's default now lives on its entry in the settings registry. Scriptorium still reads
@@ -584,6 +586,7 @@ module.exports = {
   settingsLayoutOf,
   stripMovedSettings,
   stricterCallouts,
+  titleNamedIn,
   vaultRelPath,
   scanConfigFor,
   normalizeExcludeDir,
