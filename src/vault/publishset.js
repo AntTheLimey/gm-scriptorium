@@ -86,7 +86,26 @@ function uncycled(data) {
 function siteConfigForSettings(jsonConfig) {
   const site = { ...(jsonConfig || {}) };
   delete site.outputDir;
+  delete site.rawSiteConfig;
+  delete site.settingsLayout;
   return site;
+}
+
+/**
+ * The vault's settings files, read through src/vault/read.js (so a failing disk still aborts and the
+ * panel's edited copy is still what is read, ADR 0041). `layout` is the pin's own reading of which
+ * file the vault keeps its settings in ('new' for _meta/vault-config.yaml, which wins when both
+ * files are there; 'legacy' for _meta/vault-config.md; 'none').
+ *
+ * @param {string} vaultPath
+ * @returns {{ layout: 'new'|'legacy'|'none', md: string|null, yaml: string|null }}
+ */
+function readSettingsFiles(vaultPath) {
+  const textOf = (name) => {
+    const file = path.join(vaultPath, '_meta', name);
+    return read.pathExists(file) ? read.readText(file) : null;
+  };
+  return { layout: pinned.settingsLayoutOf(vaultPath), md: textOf('vault-config.md'), yaml: textOf('vault-config.yaml') };
 }
 
 /**
@@ -118,24 +137,28 @@ function siteConfigForSettings(jsonConfig) {
  * @returns {{ publishConfig: object, configSources: object, stops: object[], switchWords: object[] }}
  */
 function loadPublishConfig(vaultPath, jsonConfig = {}) {
-  const configFile = path.join(vaultPath, '_meta', 'vault-config.md');
+  const { layout, md, yaml } = readSettingsFiles(vaultPath);
+  const moved = layout === 'new';
   let publish = {};
-  let text = null;
-
-  if (read.pathExists(configFile)) {
-    text = read.readText(configFile);
-    const parsed = read.parseFrontmatterText(text);
+  if (!moved && md !== null) {
+    const parsed = read.parseFrontmatterText(md);
     if (parsed.ok && parsed.data && parsed.data.publish && typeof parsed.data.publish === 'object') {
       publish = parsed.data.publish;
     }
   }
 
-  const site = siteConfigForSettings(jsonConfig);
+  // On the moved layout the pin is handed the pack as read, so a hiding key left in it is the stop
+  // the pin makes of it (the moved keys are no longer read there, and what they hid would publish).
+  // rawSiteConfig is read by destructuring: it is a key src/cli/check.js adds to the context's
+  // jsonConfig, not a key of the site's vault.config.json (test/docs-reference-vault.test.js
+  // scans for the dotted spelling of those).
+  const { rawSiteConfig } = jsonConfig;
+  const site = siteConfigForSettings(moved && rawSiteConfig ? rawSiteConfig : jsonConfig);
   let settings;
   try {
-    settings = pinned.readPublishSettings(vaultPath, site, { md: text, yaml: null });
+    settings = pinned.readPublishSettings(vaultPath, site, { md, yaml });
   } catch (err) {
-    if (text === null) throw err;
+    if (md === null && yaml === null) throw err;
     settings = pinned.readPublishSettings(vaultPath, site, { md: null, yaml: null });
   }
   const pc = settings.config;
@@ -155,12 +178,21 @@ function loadPublishConfig(vaultPath, jsonConfig = {}) {
   Object.defineProperty(publishConfig, 'withheld_words', { value: pc.withheld_words, enumerable: false });
 
   const asList = (v) => (Array.isArray(v) ? v : undefined);
+  // The vault's own lists. On the moved layout the pin reports where each came from, so a list the
+  // yaml does not write is undefined, as an absent md list is.
+  const ownList = (setting, value) => (pc.origins && pc.origins[setting] === 'file' ? asList(value) : undefined);
   const configSources = {
-    vault: {
-      exclude_sections: asList(publish.exclude_sections),
-      exclude_fields: asList(publish.exclude_fields),
-      exclude_dirs: asList(publish.exclude_dirs),
-    },
+    vault: moved
+      ? {
+          exclude_sections: ownList('player_site.hide.sections', pc.exclude_sections),
+          exclude_fields: ownList('player_site.hide.fields', pc.exclude_fields),
+          exclude_dirs: ownList('player_site.hide.folders', pc.exclude_dirs),
+        }
+      : {
+          exclude_sections: asList(publish.exclude_sections),
+          exclude_fields: asList(publish.exclude_fields),
+          exclude_dirs: asList(publish.exclude_dirs),
+        },
     json: {
       excludeSections: asList(jsonConfig.excludeSections),
       excludeFields: asList(jsonConfig.excludeFields),
@@ -432,6 +464,7 @@ function computePublishedSet(vaultPath, jsonConfig) {
 module.exports = {
   PUBLISH_DEFAULTS: pinned.PUBLISH_DEFAULTS,
   loadPublishConfig,
+  readSettingsFiles,
   loadManifest,
   scanForPublish,
   scanAllCandidatePages,

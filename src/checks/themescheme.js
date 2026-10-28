@@ -2,6 +2,7 @@
 
 const path = require('path');
 const read = require('../vault/read');
+const { readSettingsFiles } = require('../vault/publishset');
 const pinned = require('../generator/pinned');
 const { loadTheme, THEMES } = require('../build/themes');
 const { createFinding } = require('../report/finding');
@@ -40,11 +41,27 @@ function luminance(hex) {
 }
 
 /**
+ * The same reading on a moved vault, from the theme the pin resolved out of _meta/vault-config.yaml
+ * (its palette already merged over the defaults). A genre with no palette written leaves the palette
+ * to the preset, as it does in the old file.
+ */
+function movedPaletteScheme(vaultPath) {
+  const { md, yaml } = readSettingsFiles(vaultPath);
+  const { publishConfig } = pinned.resolveSiteConfig(vaultPath, {}, { md, yaml });
+  const theme = publishConfig.theme || {};
+  const writesPalette = Object.keys(publishConfig.origins || {}).some((k) => k.startsWith('player_site.theme.palette.') && publishConfig.origins[k] === 'file');
+  if (!writesPalette && theme.genre && pinned.resolveGenrePreset(theme.genre)) return { scheme: null, background: null };
+  const background = (theme.palette || {}).background || '#1a1f25';
+  return { scheme: luminance(background) > 0.5 ? 'light' : 'dark', background };
+}
+
+/**
  * @param {string} vaultPath
  * @returns {{ scheme: 'light'|'dark'|null, background: string|null }} null/null when a genre
  *   preset owns the palette (the preset's own CSS colours are not reproduced here -- SD-6).
  */
 function paletteScheme(vaultPath) {
+  if (pinned.settingsLayoutOf(vaultPath) === 'new') return movedPaletteScheme(vaultPath);
   const configFile = path.join(vaultPath, '_meta', 'vault-config.md');
   let publish = {};
   if (read.pathExists(configFile)) {
@@ -96,7 +113,9 @@ function runThemeSchemeMismatch(ctx, { registry = THEMES } = {}) {
   if (paletteSchemeValue === null) return [];
   if (paletteSchemeValue === themeScheme) return [];
 
-  const configFile = path.join(ctx.vaultPath, '_meta', 'vault-config.md');
+  const moved = pinned.settingsLayoutOf(ctx.vaultPath) === 'new';
+  const settingsFile = moved ? '_meta/vault-config.yaml' : '_meta/vault-config.md';
+  const configFile = path.join(ctx.vaultPath, settingsFile);
 
   return [
     createFinding({
@@ -104,10 +123,10 @@ function runThemeSchemeMismatch(ctx, { registry = THEMES } = {}) {
       severity: 'info',
       category: 'config',
       campaign: ctx.campaign,
-      path: read.pathExists(configFile) ? '_meta/vault-config.md' : null,
+      path: read.pathExists(configFile) ? settingsFile : null,
       message:
         `theme "${theme}" expects a ${themeScheme} palette, but the palette background ${background} is ${paletteSchemeValue}; ` +
-        'set publish.theme.palette.background in _meta/vault-config.md, or choose another theme in pack.toml',
+        `set publish.theme.palette.background in ${settingsFile}, or choose another theme in pack.toml`,
       data: { theme, scheme: themeScheme, paletteScheme: paletteSchemeValue, background },
     }),
   ];

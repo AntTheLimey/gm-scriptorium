@@ -162,10 +162,11 @@ test('a settings file whose frontmatter cannot be read leaves the built-in hidin
   }
 });
 
-test('a moved vault\'s vault-config.yaml is never read here: the old file is (moved vaults are refused before this)', () => {
+test('on a vault with both files, the yaml\'s list is returned and the old file\'s is not', () => {
   withVault('  exclude_sections:\n    - Old', (vault) => {
     fs.writeFileSync(path.join(vault, '_meta', 'vault-config.yaml'), 'player_site:\n  hide:\n    sections: [New]\n');
-    assert.deepEqual(loadPublishConfig(vault, {}).publishConfig.exclude_sections, ['Old']);
+    assert.deepEqual(loadPublishConfig(vault, {}).publishConfig.exclude_sections, ['New']);
+    assert.deepEqual(loadPublishConfig(vault, {}).configSources.vault.exclude_sections, ['New']);
   });
 });
 

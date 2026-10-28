@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const pinned = require('../generator/pinned');
 
 /*
  * FR-DEP-10: the pinned generator reads some inputs relative to its config
@@ -65,9 +66,19 @@ function mirrorSiteInputs(siteDir, stagingRoot) {
  * @param {string} stagingOut absolute
  * @returns {string} the synthesised config's absolute path
  */
+function withoutContext(config) {
+  const { rawSiteConfig, settingsLayout, ...rest } = config;
+  return rest;
+}
+
 function writeStagedConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut) {
   fs.mkdirSync(stagingRoot, { recursive: true });
-  const staged = { ...userJsonConfig, vaultPath, outputDir: stagingOut };
+  // A moved vault's pack is staged as the pack was read, with every key the vault's settings now
+  // own taken out, so the generator never sees one (the settings it reads come from the vault).
+  const moved = pinned.settingsLayoutOf(vaultPath) === 'new';
+  const { rawSiteConfig } = userJsonConfig; // not a vault.config.json key: the pack as read, added by check.js
+  const base = moved ? pinned.stripMovedSettings(rawSiteConfig || withoutContext(userJsonConfig)).config : userJsonConfig;
+  const staged = { ...base, vaultPath, outputDir: stagingOut };
   const configPath = path.join(stagingRoot, 'vault.config.json');
   fs.writeFileSync(configPath, JSON.stringify(staged, null, 2));
   return configPath;

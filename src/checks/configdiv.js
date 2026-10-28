@@ -222,14 +222,15 @@ function siteVaultPathMismatchMessage(m) {
 function runSettingsFault(ctx) {
   const stops = ctx.publishSet.stops || [];
   const site = ctx.jsonConfig || {};
+  const { rawSiteConfig, settingsLayout } = site; // context keys added by src/cli/check.js, not vault.config.json keys
   return stops.map((fault) => {
-    const inSiteFile = !String(fault.name).includes('.') && Object.prototype.hasOwnProperty.call(site, fault.name);
+    const inSiteFile = !String(fault.name).includes('.') && Object.prototype.hasOwnProperty.call(rawSiteConfig || site, fault.name);
     return createFinding({
       id: 'config/settings-fault',
       severity: 'error',
       category: 'config',
       campaign: ctx.campaign,
-      path: inSiteFile ? null : '_meta/vault-config.md',
+      path: inSiteFile ? null : (settingsLayout === 'new' ? '_meta/vault-config.yaml' : '_meta/vault-config.md'),
       message: `${fault.message} The build will not run until this is fixed.`,
       data: { name: fault.name, setting: fault.setting || null, kind: fault.kind },
     });

@@ -262,6 +262,22 @@ function settingFaults(vaultPath, siteConfig, files) {
 }
 
 /**
+ * The settings the pin's reader found, by dotted name (`vault.campaign`, `player_site.title`), and
+ * where each came from ('file', 'default' and so on). Quiet, like readPublishSettings.
+ *
+ * @param {string} vaultPath
+ * @param {object} siteConfig
+ * @param {{ md: string|null, yaml: string|null }} files
+ * @returns {{ values: object, origins: object }}
+ */
+function readSettingValues(vaultPath, siteConfig, files) {
+  return withServedSettings(vaultPath, files, () => {
+    const { values, origins } = pinSettings.readSettings({ vaultPath, siteConfig });
+    return { values, origins };
+  });
+}
+
+/**
  * Which settings layout a vault is on: 'new' (_meta/vault-config.yaml), 'legacy'
  * (_meta/vault-config.md) or 'none'. Reads the real disk; a caller that needs an edited copy
  * served instead passes its text to the functions above.
@@ -550,6 +566,7 @@ module.exports = {
   readPublishSettings,
   resolveSiteConfig,
   settingFaults,
+  readSettingValues,
   settingsLayoutOf,
   stripMovedSettings,
   stricterCallouts,

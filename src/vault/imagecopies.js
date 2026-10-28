@@ -3,6 +3,7 @@
 const path = require('path');
 const read = require('./read');
 const pinned = require('../generator/pinned');
+const { readSettingsFiles } = require('./publishset');
 const { toRelativePosix } = require('../util/paths');
 
 /*
@@ -18,7 +19,16 @@ const { toRelativePosix } = require('../util/paths');
 
 const isPlainMap = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+// On a moved vault the pin's own reading of the yaml: the cover picture, the banners and the folder
+// map as the vault's settings resolved them (the pack's carried copies are gone there).
+function readMoved(vaultRoot) {
+  const { md, yaml } = readSettingsFiles(vaultRoot);
+  const pc = pinned.resolveSiteConfig(vaultRoot, {}, { md, yaml }).publishConfig;
+  return { theme: { campaign_image: pc.theme && pc.theme.campaign_image }, banners: pc.banners, folder_map: pc.folder_map };
+}
+
 function readPublish(vaultRoot) {
+  if (pinned.settingsLayoutOf(vaultRoot) === 'new') return readMoved(vaultRoot);
   const file = path.join(vaultRoot, '_meta', 'vault-config.md');
   if (!read.pathExists(file)) return {};
   const result = read.readFrontmatter(file);

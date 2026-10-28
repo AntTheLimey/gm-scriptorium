@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const read = require('../vault/read');
 const pinned = require('../generator/pinned');
+const { readSettingsFiles } = require('../vault/publishset');
 const { ScriptoriumError } = require('../util/errors');
 const { deriveFolderMapAdditions } = require('./foldermap');
 const { composePackToml } = require('./validate');
@@ -30,6 +31,16 @@ function defaultOutputFor(vaultAbs, name) {
 
 /** vault-config.md's `campaign` frontmatter, if it's a non-empty string once trimmed; otherwise the name. */
 function defaultTitleFor(vaultAbs, name) {
+  if (pinned.settingsLayoutOf(vaultAbs) === 'new') {
+    // A moved vault: the site title the yaml sets, else its campaign name, else the name.
+    const { md, yaml } = readSettingsFiles(vaultAbs);
+    const { values, origins } = pinned.readSettingValues(vaultAbs, {}, { md, yaml });
+    const title = values.player_site && values.player_site.title;
+    if (origins['player_site.title'] === 'file' && typeof title === 'string' && title.trim().length > 0) return title.trim();
+    const campaign = values.vault && values.vault.campaign;
+    if (origins['vault.campaign'] === 'file' && typeof campaign === 'string' && campaign.trim().length > 0) return campaign.trim();
+    return name;
+  }
   const configPath = path.join(vaultAbs, '_meta', 'vault-config.md');
   const result = read.readFrontmatter(configPath);
   if (result.ok && typeof result.data.campaign === 'string' && result.data.campaign.trim().length > 0) {

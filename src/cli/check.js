@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const read = require('../vault/read');
+const pinned = require('../generator/pinned');
+const { readSettingsFiles } = require('../vault/publishset');
 const { loadPackToml } = require('../build/packtoml');
 const { resolveCampaignContext } = require('./args');
 const { locateVault } = require('../vault/locate');
@@ -364,12 +366,30 @@ function asPackProblem(fn, campaign) {
 
 function resolveVaultContext(ctxInfo) {
   const { vaultPath, site } = resolveVaultSite(ctxInfo);
+  return contextFromSite(ctxInfo, vaultPath, site);
+}
+
+/**
+ * The second half of resolveVaultContext: the site config, the pack and the vault's settings, for a
+ * vault and site source already resolved. Split out so it can be driven on its own.
+ *
+ * On a vault whose settings moved to _meta/vault-config.yaml the pack is not required to carry
+ * folderMap or excludeDirs (the yaml does), and `jsonConfig` is the pack resolved against the yaml
+ * (each moved key as the vault's settings give it, in its old JSON spelling), with the pack as read
+ * in `rawSiteConfig` and `settingsLayout: 'new'` beside it. On any other vault `jsonConfig` is the
+ * pack and the vault path, as it always was.
+ *
+ * @throws {VaultUnreachableError} a pack that cannot be used
+ */
+function contextFromSite(ctxInfo, vaultPath, site) {
   const siteConfig =
     site.siteSource === 'site_config'
       ? loadSiteConfig(site.siteConfigPath)
       : asPackProblem(() => loadPackConfig(site.siteConfigPath, ctxInfo.campaign), ctxInfo.campaign);
+  const moved = pinned.settingsLayoutOf(vaultPath) === 'new';
   // Issue #143: a missing or wrong-kind required key is a config problem, exit 3, like its pack siblings.
-  asPackProblem(() => assertScanKeysPresent(siteConfig, site.siteConfigPath, ctxInfo.campaign), ctxInfo.campaign);
+  // The moved layout keeps these in the vault's own settings, so the pack need not carry them.
+  if (!moved) asPackProblem(() => assertScanKeysPresent(siteConfig, site.siteConfigPath, ctxInfo.campaign), ctxInfo.campaign);
   const vaultMismatch = computeVaultMismatch(siteConfig, vaultPath, site.siteConfigPath);
 
   // ADR 0019 (P3a-FR01, Structural decision 4): pack.toml's SYNTAX validation runs here, in
@@ -378,9 +398,16 @@ function resolveVaultContext(ctxInfo) {
   // before runAtomicBuild.
   const packToml = asPackProblem(() => loadPackToml(site.siteDir, { campaign: ctxInfo.campaign }), ctxInfo.campaign);
 
+  let jsonConfig = { ...siteConfig, vaultPath };
+  if (moved) {
+    const { md, yaml } = readSettingsFiles(vaultPath);
+    const resolved = pinned.resolveSiteConfig(vaultPath, siteConfig, { md, yaml }).config;
+    jsonConfig = { ...resolved, vaultPath, rawSiteConfig: siteConfig, settingsLayout: 'new' };
+  }
+
   return {
     vaultPath,
-    jsonConfig: { ...siteConfig, vaultPath },
+    jsonConfig,
     vaultMismatch,
     siteDir: site.siteDir,
     siteSource: site.siteSource,
@@ -481,6 +508,7 @@ module.exports = {
   runCheckForContextWithContext,
   loadSiteConfig,
   resolveVaultContext,
+  contextFromSite,
   asPackProblem,
   resolveVaultSite,
   loadPackConfig,
