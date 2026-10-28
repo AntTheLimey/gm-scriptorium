@@ -47,8 +47,13 @@ function folderKey(entry, vaultPath) {
 
 /** The pack entries of a list that the vault's list lacks. Folders are compared as the scanner spells them. */
 function missingEntries(packKey, packList, vaultList, vaultPath) {
-  // A section is held as the build matches headings (its own reading of case, marks and spacing).
-  if (packKey === 'excludeSections') return packList.filter((e) => !pinned.titleNamedIn(String(e), vaultList));
+  // A section name is read by the build through its single headingKey, so two names with equal keys hide
+  // the same headings. A title's other readings (titleNamedIn) must not be used here: they would call
+  // "[[Real Name|Display]]" held by "Real Name" while the pack strips "Display" and the vault does not.
+  if (packKey === 'excludeSections') {
+    const held = new Set(vaultList.map((v) => pinned.headingKey(String(v))));
+    return packList.filter((e) => !held.has(pinned.headingKey(String(e))));
+  }
   const key = packKey === 'excludeDirs' ? (e) => folderKey(e, vaultPath) : (e) => e;
   const held = new Set(vaultList.map(key));
   return packList.filter((e) => !held.has(key(e)));

@@ -200,6 +200,12 @@ test('callouts: the pin keeps the vault\'s value unless the pack is stricter, in
 test('sections are held as the build matches headings: case does not matter, a different name does', () => {
   assert.equal(isHeldByVault('excludeSections', ['gm notes'], ['GM Notes']), true);
   assert.equal(isHeldByVault('excludeSections', ['GM Notes', 'Secrets'], ['GM Notes']), false);
+  assert.equal(isHeldByVault('excludeSections', ['GM Notes'], ['GM Notes']), true);
+  // The build reads a hide-list name through its first reading only: this one is "Display", not "Real Name".
+  assert.equal(isHeldByVault('excludeSections', ['[[Real Name|Display]]'], ['Real Name']), false);
+  assert.equal(isHeldByVault('excludeSections', ['[[Real Name|Display]]'], ['Display']), true);
+  // A zero-width space inside a name is taken out, so it reads as the plain name.
+  assert.equal(isHeldByVault('excludeSections', ['GM\u200bNotes'], ['GMNotes']), true);
 });
 
 test('the carry findings are worked out once per context, not once per id', (t) => {
