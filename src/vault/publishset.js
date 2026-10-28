@@ -157,8 +157,8 @@ function loadPublishConfig(vaultPath, jsonConfig = {}, rawSiteConfig = undefined
 
   // On the moved layout the pin is handed the pack as read, so a hiding key left in it is the stop
   // the pin makes of it (the moved keys are no longer read there, and what they hid would publish).
-  const siteFile = moved && rawSiteConfig ? rawSiteConfig : jsonConfig;
-  const site = siteConfigForSettings(siteFile);
+  const siteConfig = moved && rawSiteConfig ? rawSiteConfig : jsonConfig;
+  const site = siteConfigForSettings(siteConfig);
   let settings;
   let unreadable = null;
   try {
@@ -206,9 +206,9 @@ function loadPublishConfig(vaultPath, jsonConfig = {}, rawSiteConfig = undefined
     // The site file's own lists. On the moved layout jsonConfig is the pack resolved against the yaml,
     // so its lists would be the yaml's (or the defaults); the pack as read is what the site file holds.
     json: {
-      excludeSections: asList(siteFile.excludeSections),
-      excludeFields: asList(siteFile.excludeFields),
-      excludeDirs: asList(siteFile.excludeDirs),
+      excludeSections: asList(siteConfig.excludeSections),
+      excludeFields: asList(siteConfig.excludeFields),
+      excludeDirs: asList(siteConfig.excludeDirs),
     },
   };
 
