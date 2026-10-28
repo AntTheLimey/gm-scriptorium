@@ -79,7 +79,9 @@ function vaultSettingsFile(ctx) {
 function runExcludeSectionsDivergence(ctx) {
   const file = vaultSettingsFile(ctx);
   const { vault, json } = ctx.publishSet.configSources;
-  if (!vault.exclude_sections && !json.excludeSections) return [];
+  // On the moved layout only the vault's own (file-origin) list can drop a default; the pack is no list source.
+  const supplied = ctx.settingsLayout === 'new' ? vault.exclude_sections : vault.exclude_sections || json.excludeSections;
+  if (!supplied) return [];
 
   const effective = ctx.publishSet.publishConfig.exclude_sections || [];
   const effectiveLower = new Set(effective.map(normaliseSection));
