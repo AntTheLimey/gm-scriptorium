@@ -102,6 +102,8 @@ function assertMovedLayout(vaultPath) {
  */
 function onLayout(layout, srcVault, siteConfig, root) {
   if (layout === 'legacy') {
+    assert.ok(fs.existsSync(path.join(srcVault, '_meta', 'vault-config.md')), 'the legacy vault must be on the old layout');
+    assert.ok(!fs.existsSync(path.join(srcVault, '_meta', 'vault-config.yaml')), 'the legacy vault must not hold a vault-config.yaml');
     return { vaultPath: srcVault, jsonConfig: { ...siteConfig, vaultPath: srcVault }, rawSiteConfig: undefined, settingsLayout: 'legacy' };
   }
   assert.equal(layout, 'new');
@@ -115,4 +117,19 @@ function onLayout(layout, srcVault, siteConfig, root) {
   return { vaultPath, jsonConfig: info.jsonConfig, rawSiteConfig: info.rawSiteConfig, settingsLayout: info.settingsLayout };
 }
 
-module.exports = { moveVaultCopy, assertMovedLayout, onLayout };
+/**
+ * String.replace that must match: a settings edit that silently matched nothing would leave a case
+ * proving less than it says.
+ *
+ * @param {string} text the file's text
+ * @param {string} from the exact text to replace
+ * @param {string} to what to put there
+ * @returns {string} the edited text
+ * @throws {assert.AssertionError} when `from` is not in `text`
+ */
+function replaceChecked(text, from, to) {
+  assert.ok(text.includes(from), `the settings edit did not match: ${JSON.stringify(from)}`);
+  return text.replace(from, () => to);
+}
+
+module.exports = { moveVaultCopy, assertMovedLayout, onLayout, replaceChecked };

@@ -3,11 +3,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const { buildCheckContext } = require('../src/checks/context');
 const { runHiddenName } = require('../src/checks/leak/l4');
 const { onLayout } = require('./helpers/moved-vault');
+
+const PIN_VAULT = path.join(__dirname, 'fixtures', 'pin-vault');
+const PIN_SITE_CONFIG = require(path.join(__dirname, 'fixtures', 'pin-vault-site-config.json'));
 
 // Every vault-backed case runs on both settings layouts: the old _meta/vault-config.md and the
 // moved _meta/vault-config.yaml. The assertions are the same on both.
@@ -16,7 +20,7 @@ const scratchRoots = [];
 const onLayoutCache = {};
 function pinOn(layout) {
   if (!onLayoutCache[layout]) {
-    const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-l4-rendered-'));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-l4-rendered-'));
     scratchRoots.push(root);
     onLayoutCache[layout] = onLayout(layout, PIN_VAULT, PIN_SITE_CONFIG, root);
   }
@@ -25,9 +29,6 @@ function pinOn(layout) {
 test.after(() => {
   for (const r of scratchRoots) fs.rmSync(r, { recursive: true, force: true });
 });
-
-const PIN_VAULT = path.join(__dirname, 'fixtures', 'pin-vault');
-const PIN_SITE_CONFIG = require(path.join(__dirname, 'fixtures', 'pin-vault-site-config.json'));
 
 function pinContext(layout) {
   return buildCheckContext({ campaign: 'pin-vault', ...pinOn(layout) });

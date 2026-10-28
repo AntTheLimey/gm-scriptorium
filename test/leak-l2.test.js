@@ -11,7 +11,7 @@ const { runExcludedDirInOutput } = require('../src/checks/leak/l2');
 const MINI_VAULT = path.join(__dirname, 'fixtures', 'mini-vault');
 const SITE_CONFIG = require(path.join(__dirname, 'fixtures', 'mini-vault-site-config.json'));
 
-const { onLayout } = require('./helpers/moved-vault');
+const { onLayout, replaceChecked } = require('./helpers/moved-vault');
 
 // Every vault-backed case runs on both settings layouts: the old _meta/vault-config.md and the
 // moved _meta/vault-config.yaml. The assertions are the same on both.
@@ -110,7 +110,7 @@ for (const layout of LAYOUTS) {
       const srcVault = path.join(dir, 'src-vault');
       fs.cpSync(MINI_VAULT, srcVault, { recursive: true });
       const settings = path.join(srcVault, '_meta', 'vault-config.md');
-      fs.writeFileSync(settings, fs.readFileSync(settings, 'utf8').replace('  mode: player\n', '  mode: player\n  exclude_dirs:\n    - Locations\n'));
+      fs.writeFileSync(settings, replaceChecked(fs.readFileSync(settings, 'utf8'), '  mode: player\n', '  mode: player\n  exclude_dirs:\n    - Locations\n'));
       const out = path.join(dir, 'out');
       fs.mkdirSync(path.join(out, 'locations'), { recursive: true });
       fs.writeFileSync(path.join(out, 'index.html'), '<html></html>');

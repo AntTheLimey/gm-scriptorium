@@ -16,7 +16,7 @@ const path = require('path');
 const { runAtomicBuild } = require('../src/build/run');
 const { runBuildCommand } = require('../src/cli/build');
 const { runCheckCommand } = require('../src/cli/check');
-const { moveVaultCopy, assertMovedLayout, onLayout } = require('./helpers/moved-vault');
+const { moveVaultCopy, assertMovedLayout, onLayout, replaceChecked } = require('./helpers/moved-vault');
 
 // Every case runs on both settings layouts: the old _meta/vault-config.md and the moved
 // _meta/vault-config.yaml. The assertions are the same on both. A variant is built (and mutated) on
@@ -158,7 +158,7 @@ for (const layout of LAYOUTS) {
   function addDmNotesDivergence(vaultDir) {
     const configPath = path.join(vaultDir, '_meta', 'vault-config.md');
     let cfg = fs.readFileSync(configPath, 'utf8');
-    cfg = cfg.replace('publish:\n  mode: player\n', 'publish:\n  mode: player\n  exclude_sections: ["GM Notes"]\n');
+    cfg = replaceChecked(cfg, 'publish:\n  mode: player\n', 'publish:\n  mode: player\n  exclude_sections: ["GM Notes"]\n');
     fs.writeFileSync(configPath, cfg);
 
     const hubPath = path.join(vaultDir, 'Sessions', 'Session 2.md');
