@@ -667,7 +667,7 @@
       var clashKids = [cn.p];
       if (cn.acts) clashKids.push(cn.acts);
       clashKids.push(ruleLine(r.rule));
-      status.appendChild(checksList([['ok', 'Folder found', code(r.value)], ['ok', 'A gm-apprentice vault', (function () { var sp = h('span'); add(sp, [code(joinPath(['_meta', 'vault-config.md'])), f.campaignTitle ? ' says “' + f.campaignTitle + '”' : ' is there']); return sp; })()], clashRow(r)]));
+      status.appendChild(checksList([['ok', 'Folder found', code(r.value)], ['ok', 'A gm-apprentice vault', (function () { var sp = h('span'); add(sp, [code(joinPath(['_meta', f.settingsMoved ? 'vault-config.yaml' : 'vault-config.md'])), f.campaignTitle ? ' says “' + f.campaignTitle + '”' : ' is there']); return sp; })()], clashRow(r)]));
       status.appendChild(note('err', 'warn', clashKids));
       return;
     }

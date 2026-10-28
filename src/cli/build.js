@@ -16,8 +16,8 @@ const { EXIT_CODES } = require('../util/exitcodes');
 const { SCHEMA_VERSION } = require('../report/json');
 const pkg = require('../../package.json');
 
-/** The pin's assertNoStops message for the build command: "build stopped: the settings have a fault ...". */
-const SETTINGS_STOP_RE = /^build stopped: the settings have a fault/;
+/** The pin's assertNoStops message for the build command ("build stopped: the settings have a fault ..."), or its parse error for a vault-config.yaml that is not valid YAML. */
+const SETTINGS_STOP_RE = /^(?:build stopped: the settings have a fault|_meta\/vault-config\.yaml is not valid YAML)/;
 
 /**
  * Issue #104: a campaign registered without an output folder used to reach path.resolve(undefined)

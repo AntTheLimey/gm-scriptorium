@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const locate = require('../vault/locate');
-const { vaultState } = require('../vault/vaultstate');
+const pinned = require('../generator/pinned');
 const { assertSafeOutputDir } = require('../build/plan');
 const { THEMES, INIT_DEFAULT_THEME, loadTheme } = require('../build/themes');
 const { loadPackToml } = require('../build/packtoml');
@@ -121,7 +121,7 @@ async function checkVault(value, { name = '', commit = false, deferUntilCommit =
   });
   // settingsMoved is set only for a vault whose settings are in _meta/vault-config.yaml (moved or
   // mixed), so every other result keeps its key set. The picker then names the yaml, not the .md.
-  if (vaultState(typed.abs, fs.existsSync) !== 'old') facts.settingsMoved = true;
+  if (pinned.settingsLayoutOf(typed.abs) === 'new') facts.settingsMoved = true;
   return result('vault', typed.unc ? 'warn' : 'ok', typed.abs, null, facts);
 }
 

@@ -6,6 +6,7 @@ const fs = require('fs');
 const net = require('net');
 const path = require('path');
 
+const { moveVaultCopy } = require('./helpers/moved-vault');
 const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
 const { asPackProblem } = require('../src/cli/check');
 const { ConfigError } = require('../src/util/errors');
@@ -51,6 +52,14 @@ function copyMovedVault(root, state) {
   else fs.copyFileSync(md, yaml);
   writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${v}'\noutput = '${path.join(root, 'site')}'\n`);
   return v;
+}
+
+/** A moved copy of the sample vault whose vault-config.yaml is not valid YAML (an unclosed bracket). */
+function copyBadYamlVault(root) {
+  const { vaultPath } = moveVaultCopy(SAMPLE, root);
+  fs.writeFileSync(path.join(vaultPath, '_meta', 'vault-config.yaml'), 'type: meta\nplayer_site:\n  hide:\n    sections: [unclosed\n');
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${vaultPath}'\noutput = '${path.join(root, 'site')}'\n`);
+  return vaultPath;
 }
 
 /** A copy of the sample vault at <root>/v whose publish.mode is one the generator cannot read. */
@@ -123,6 +132,8 @@ const CASES = [
   // own stop is a config mistake, so exit 3, never 1 ("Scriptorium bug").
   ['build --force-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--force-check']), 3, /build stopped/],
   ['build --no-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--no-check']), 3, /build stopped/],
+  ['build --force-check with a vault-config.yaml that is not valid YAML', (r) => (copyBadYamlVault(r), ['build', '--force-check']), 3, /^.*_meta\/vault-config\.yaml is not valid YAML/m],
+  ['build --no-check with a vault-config.yaml that is not valid YAML', (r) => (copyBadYamlVault(r), ['build', '--no-check']), 3, /^.*_meta\/vault-config\.yaml is not valid YAML/m],
   ['build --force-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--force-check']), 3, /where the site is built or what it keeps/],
   ['build --no-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--no-check']), 3, /where the site is built or what it keeps/],
 

@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const read = require('../vault/read');
 const pinned = require('../generator/pinned');
-const { readSettingsFiles } = require('../vault/publishset');
+const { readSettingsFiles, isYamlParseError } = require('../vault/publishset');
 const { loadPackToml } = require('../build/packtoml');
 const { resolveCampaignContext } = require('./args');
 const { locateVault } = require('../vault/locate');
@@ -406,8 +406,9 @@ function contextFromSite(ctxInfo, vaultPath, site) {
     let resolved = siteConfig;
     try {
       resolved = pinned.resolveSiteConfig(vaultPath, siteConfig, { md, yaml }).config;
-    } catch {
-      // see above
+    } catch (err) {
+      // Only the yaml's parse failure; anything else the pin throws is not a broken yaml and propagates.
+      if (!isYamlParseError(err)) throw err;
     }
     jsonConfig = { ...resolved, vaultPath };
   }

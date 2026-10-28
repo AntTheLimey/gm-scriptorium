@@ -15,9 +15,9 @@ const { moveVaultCopy } = require('./helpers/moved-vault');
  * against the packaged binary.
  */
 
-function register(root, vault, siteConfig) {
+function register(root, vault, siteConfig, out = 'site') {
   const site = siteConfig ? `site_config = '${siteConfig}'\n` : '';
-  fs.writeFileSync(path.join(root, 'config.toml'), `config_version = 1\n[campaigns.t]\nvault = '${vault}'\n${site}output = '${path.join(root, 'site')}'\n`);
+  fs.writeFileSync(path.join(root, 'config.toml'), `config_version = 1\n[campaigns.t]\nvault = '${vault}'\n${site}output = '${path.join(root, out)}'\n`);
 }
 
 /** A moved copy of the sample (its pack kept), registered as campaign "t". */
@@ -38,7 +38,8 @@ function carried(root) {
   const left = path.join(root, 'site-left.json');
   fs.writeFileSync(left, JSON.stringify(siteConfig, null, 2));
   fs.rmSync(path.join(vaultPath, '_meta', 'scriptorium'), { recursive: true, force: true });
-  register(root, vaultPath, left);
+  // The build goes to root/out: the move's helper keeps the site file under root/site.
+  register(root, vaultPath, left, 'out');
   return vaultPath;
 }
 
@@ -63,7 +64,7 @@ test('build on a moved vault exits 0 and builds the title the yaml holds', () =>
     carried(root);
     const res = run(root, ['build']);
     assert.equal(res.code, 0, res.all);
-    assert.match(fs.readFileSync(path.join(root, 'site', 'index.html'), 'utf8'), /The Long Lease/);
+    assert.match(fs.readFileSync(path.join(root, 'out', 'index.html'), 'utf8'), /The Long Lease/);
   });
 });
 
@@ -73,11 +74,39 @@ test('check and build on a mixed vault exit 0, and the left over file is reporte
     fs.copyFileSync(path.join(SAMPLE, '_meta', 'vault-config.md'), path.join(vault, '_meta', 'vault-config.md'));
     const checked = run(root, ['check']);
     assert.equal(checked.code, 0, checked.all);
-    assert.match(checked.all, /left over/);
+    assert.match(checked.all, /^WARN config\/leftover-settings-file/m);
     const built = run(root, ['build']);
     assert.equal(built.code, 0, built.all);
     // The build repeats the generator's own warning line.
     assert.match(built.all, /_meta\/vault-config\.md is left over from before the update and is not read/);
+  });
+});
+
+test('a left over vault-config.md with broken frontmatter does not block check or build: the generator never reads it', () => {
+  // Intended outcome, and why: with a vault-config.yaml beside it the pin does not read
+  // vault-config.md at all (it reports it as left over and not read), so a broken one cannot change
+  // the site, and a note nobody reads must not stop the GM. Only the leftover warning is given.
+  withScratch((root) => {
+    const vault = carried(root);
+    fs.writeFileSync(path.join(vault, '_meta', 'vault-config.md'), '---\npublish: [unclosed\n  : : :\n---\n');
+    const checked = run(root, ['check']);
+    assert.equal(checked.code, 0, checked.all);
+    assert.match(checked.all, /config\/leftover-settings-file/);
+    assert.doesNotMatch(checked.all, /^ERROR frontmatter\/parse-error/m);
+    const built = run(root, ['build']);
+    assert.equal(built.code, 0, built.all);
+  });
+});
+
+test('a vault-config.md with broken frontmatter is still an error when it is the only settings file', () => {
+  withScratch((root) => {
+    const vault = path.join(root, 'v');
+    fs.cpSync(SAMPLE, vault, { recursive: true });
+    fs.writeFileSync(path.join(vault, '_meta', 'vault-config.md'), '---\npublish: [unclosed\n  : : :\n---\n');
+    register(root, vault);
+    const res = run(root, ['check']);
+    assert.equal(res.code, 2, res.all);
+    assert.match(res.all, /^ERROR frontmatter\/parse-error/m);
   });
 });
 
@@ -125,7 +154,7 @@ test('a malformed vault-config.yaml gives check exit 2 naming the file, with no 
     fs.writeFileSync(path.join(vault, '_meta', 'vault-config.yaml'), 'type: meta\nplayer_site:\n  hide:\n    sections: [unclosed\n');
     const res = run(root, ['check']);
     assert.equal(res.code, 2, res.all);
-    assert.match(res.all, /vault-config\.yaml/);
+    assert.match(res.all, /^ERROR config\/settings-fault _meta\/vault-config\.yaml\s+_meta\/vault-config\.yaml is not valid YAML/m);
     assert.doesNotMatch(res.all, /\n\s+at .*\(.*:\d+:\d+\)/);
   });
 });
@@ -136,6 +165,8 @@ test('build on a malformed vault-config.yaml gives exit 2 at the check step and 
     fs.writeFileSync(path.join(vault, '_meta', 'vault-config.yaml'), 'type: meta\nplayer_site:\n  hide:\n    sections: [unclosed\n');
     const res = run(root, ['build']);
     assert.equal(res.code, 2, res.all);
+    assert.match(res.all, /^check found 1 error\(s\); refusing to build\. Nothing was written\./m);
+    assert.match(res.all, /^ERROR config\/settings-fault _meta\/vault-config\.yaml /m);
     assert.equal(fs.existsSync(path.join(root, 'site')), false);
   });
 });

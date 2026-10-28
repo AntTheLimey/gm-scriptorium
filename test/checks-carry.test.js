@@ -193,6 +193,32 @@ test('a yaml the pin cannot parse is one settings-fault error naming the file, a
   }
 });
 
+test('an error that is not the yaml\'s parse failure is not turned into a finding: it propagates', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-carry-'));
+  const realResolve = pinned.resolveSiteConfig;
+  const realRead = pinned.readPublishSettings;
+  try {
+    const { vaultPath } = moveVaultCopy(SAMPLE, root);
+    const pack = { searchEnabled: true };
+    pinned.resolveSiteConfig = () => {
+      throw new Error('the disk went away');
+    };
+    assert.throws(() => contextOf(vaultPath, root, pack), /the disk went away/);
+    pinned.resolveSiteConfig = realResolve;
+    const ctx = contextOf(vaultPath, root, pack);
+    // Throws only for the real read (a yaml present), so the retry without settings cannot hide it.
+    pinned.readPublishSettings = (vault, site, files) => {
+      if (files.yaml === null) return realRead(vault, site, files);
+      throw new Error('the disk went away again');
+    };
+    assert.throws(() => buildCheckContext({ campaign: 'x', vaultPath, jsonConfig: ctx.jsonConfig, rawSiteConfig: ctx.rawSiteConfig, settingsLayout: 'new' }), /the disk went away again/);
+  } finally {
+    pinned.resolveSiteConfig = realResolve;
+    pinned.readPublishSettings = realRead;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('callouts: the pin keeps the vault\'s value unless the pack is stricter, in the pin\'s own argument order', () => {
   assert.equal(isHeldByVault('excludeCallouts', ['b'], ['a', 'b']), true);
   assert.equal(isHeldByVault('excludeCallouts', ['Spoiler'], ['spoiler']), true);

@@ -14,12 +14,13 @@ const { createAdminContext } = require('../src/admin/context');
 const preview = require('../src/admin/preview');
 const { runServeCommand } = require('../src/cli/serve');
 const { startLocalListener } = require('../src/serve/server');
+const { moveVaultCopy } = require('./helpers/moved-vault');
 const { makeCampaigns, startPanel, post } = require('./helpers/campaigns-panel');
 
 /*
  * Issue #171, the panel. A vault can be moved while the panel is running, so each of these opens
  * the panel (or builds a context) on an OLD vault first, then plants or renames the settings file.
- *   (i) the preview and the check keep working after a .yaml appears (no refusal);
+ *   (i) the preview and the check exit 0 on a vault the pin's move has run on;
  *   (j) the tagline save refuses in the mixed state, writing no backup and no temp file
  *       (editing a moved vault comes in a later task);
  *   (k) switching to a campaign whose vault is moved succeeds.
@@ -51,29 +52,33 @@ function assertTreesByteIdentical(dirA, dirB) {
   }
 }
 
-test('(i) after a vault-config.yaml appears, the preview build and the check still run, and neither throws a refusal', () => {
+test('(i) on a vault the move has run on, the preview build and the check exit 0, and the preview holds the yaml\'s title', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-moved-panel-'));
   let ctx = null;
   try {
-    const vaultPath = path.join(root, 'vocab-vault');
-    fs.cpSync(path.join(__dirname, 'fixtures', 'vocab-vault'), vaultPath, { recursive: true });
+    const pack = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'vocab-vault', '_meta', 'scriptorium', 'vault.config.json'), 'utf8'));
+    pack.siteTitle = 'Moved Panel Title';
+    // The pin's own move, folding the site file in: the title and folder map now live in the yaml.
+    const moved = moveVaultCopy(path.join(__dirname, 'fixtures', 'vocab-vault'), root, { siteConfig: pack });
+    const vaultPath = moved.vaultPath;
+    fs.rmSync(path.join(vaultPath, '_meta', 'scriptorium'), { recursive: true, force: true });
+    assert.equal(fs.existsSync(path.join(vaultPath, '_meta', 'vault-config.yaml')), true);
+    assert.equal(fs.existsSync(path.join(vaultPath, '_meta', 'vault-config.md')), false);
+    const siteFile = path.join(root, 'site-left.json');
+    fs.writeFileSync(siteFile, JSON.stringify(moved.siteConfig, null, 2));
     const configPath = path.join(root, 'config.toml');
-    fs.writeFileSync(configPath, ['config_version = 1', 'default_campaign = "vocab"', '', '[campaigns.vocab]', `vault = '${vaultPath}'`, `output = '${root}/out'`, ''].join('\n'));
+    fs.writeFileSync(configPath, ['config_version = 1', 'default_campaign = "vocab"', '', '[campaigns.vocab]', `vault = '${vaultPath}'`, `site_config = '${siteFile}'`, `output = '${root}/out'`, ''].join('\n'));
     const ctxInfo = resolveCampaignContext({ config: configPath }, 'vocab');
     const { vaultPath: resolved, site } = resolveVaultSite(ctxInfo);
     ctx = createAdminContext({ ctxInfo, vaultPath: resolved, site, token: 'TOK' });
     preview.ensurePreviewRoot(ctx);
 
-    const good = preview.runPreviewBuild(ctx);
-    assert.equal(good.exitCode, 0, good.human);
+    const built = preview.runPreviewBuild(ctx);
+    assert.equal(built.exitCode, 0, built.human);
+    assert.match(fs.readFileSync(path.join(ctx.previewDir, 'index.html'), 'utf8'), /<title>[^<]*Moved Panel Title/);
 
-    fs.copyFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), path.join(vaultPath, '_meta', 'vault-config.yaml'));
-
-    const again = preview.runPreviewBuild(ctx);
-    assert.equal(typeof again.exitCode, 'number');
     const checked = runCheckForContextWithContext(ctx.ctxInfo, {}, {});
-    assert.equal(typeof checked.exitCode, 'number');
-    assert.ok(!/keeps its settings in/.test(`${again.human}${checked.human}`));
+    assert.equal(checked.exitCode, 0, checked.human);
   } finally {
     if (ctx) preview.removePreviewRoot(ctx);
     fs.rmSync(root, { recursive: true, force: true });

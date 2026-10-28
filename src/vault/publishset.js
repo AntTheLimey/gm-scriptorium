@@ -107,6 +107,15 @@ function readSettingsFiles(vaultPath) {
 }
 
 /**
+ * Is this the pin's "not valid YAML" error for _meta/vault-config.yaml (lib/settings/read.js
+ * parseNewFile)? The pin throws a plain Error, so its text is the only handle. Anything else the
+ * pin throws is not a broken yaml and must not be reported as one.
+ */
+function isYamlParseError(err) {
+  return Boolean(err) && /^_meta\/vault-config\.yaml is not valid YAML/.test(String(err.message));
+}
+
+/**
  * The vault's settings as the pinned build reads them. Up to publish-v1.21.0 this was a hand port
  * of the pin's config merge. At publish-v1.26.0 the pin's reader changed in ways a port would have
  * to follow line by line (a site-file hiding list now adds to the built-in list, upstream #371;
@@ -155,6 +164,7 @@ function loadPublishConfig(vaultPath, jsonConfig = {}, rawSiteConfig = undefined
     settings = pinned.readPublishSettings(vaultPath, site, { md, yaml });
   } catch (err) {
     if (md === null && yaml === null) throw err;
+    if (moved && !isYamlParseError(err)) throw err;
     settings = pinned.readPublishSettings(vaultPath, site, { md: null, yaml: null });
     // A broken vault-config.md is reported by frontmatter/parse-error, which indexes every note. The
     // yaml is no note, so nothing else would name it: it becomes a stop, reported by config/settings-fault.
@@ -463,6 +473,7 @@ function computePublishedSet(vaultPath, jsonConfig, rawSiteConfig = undefined) {
 module.exports = {
   PUBLISH_DEFAULTS: pinned.PUBLISH_DEFAULTS,
   loadPublishConfig,
+  isYamlParseError,
   readSettingsFiles,
   loadManifest,
   scanForPublish,
