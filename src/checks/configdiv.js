@@ -214,18 +214,18 @@ function siteVaultPathMismatchMessage(m) {
 }
 
 /**
- * config/hiding-setting-fault: one ERROR per fault the pinned build stops on (lib/config.js
+ * config/settings-fault: one ERROR per fault the pinned build stops on (lib/config.js
  * assertNoStops), in the pin's own words, read by src/vault/publishset.js's loadPublishConfig through
  * the pin's own settings loader. The path is the vault's settings file, except for a fault in a key
  * of the site's vault.config.json, which the pin names by that key.
  */
-function runHidingSettingFault(ctx) {
+function runSettingsFault(ctx) {
   const stops = ctx.publishSet.stops || [];
   const site = ctx.jsonConfig || {};
   return stops.map((fault) => {
     const inSiteFile = !String(fault.name).includes('.') && Object.prototype.hasOwnProperty.call(site, fault.name);
     return createFinding({
-      id: 'config/hiding-setting-fault',
+      id: 'config/settings-fault',
       severity: 'error',
       category: 'config',
       campaign: ctx.campaign,
@@ -280,7 +280,7 @@ function runPackShadowed(ctx) {
 }
 
 module.exports = {
-  runHidingSettingFault,
+  runSettingsFault,
   runExcludeSectionsDivergence,
   runExcludeDirsDivergence,
   runExcludeFieldsDivergence,

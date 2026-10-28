@@ -212,13 +212,13 @@ const CHECKS = Object.freeze([
       'A list in _meta/vault-config.md replaces the pin\'s default exclude_fields (secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability) instead of extending it, so an un-renamed default is no longer filtered. A list only in vault.config.json adds to the defaults (lib/settings/legacy.js pick, from publish-v1.26.0).',
   },
   {
-    id: 'config/hiding-setting-fault',
+    id: 'config/settings-fault',
     category: 'config',
     defaultSeverity: 'error',
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A hiding setting (publish.mode, an exclude_ list or switch, overrides.fields, or the site file\'s excludeSections, excludeFields, excludeDirs or excludeCallouts) cannot be read, or a name that looks like one is misspelt or misplaced. The pinned generator refuses to build until it is fixed (lib/config.js assertNoStops), because its safe fallback might not be what the GM meant. The message is the generator\'s own.',
+      'A setting the pinned generator cannot read stops its build (lib/config.js assertNoStops): one that hides something (publish.mode, an exclude_ list or switch, overrides.fields, or the site file\'s excludeSections, excludeFields, excludeDirs or excludeCallouts), or one that says where the site is built or what it keeps (the output folder, or preserveDirs in the site file). A name that looks like one of these but is misspelt or misplaced counts too. The message is the generator\'s own.',
   },
   {
     id: 'config/site-vault-path-mismatch',

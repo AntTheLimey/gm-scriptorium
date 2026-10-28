@@ -65,6 +65,16 @@ function copyBadModeVault(root) {
   return v;
 }
 
+/** A copy of the sample vault at <root>/v whose site file asks to keep a folder the generator will not accept. */
+function copyBadKeepVault(root) {
+  const v = copyPackVault(root);
+  const cfgPath = path.join(v, '_meta', 'scriptorium', 'vault.config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.preserveDirs = ['maps/old'];
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+  return v;
+}
+
 // [label, setup(root) -> args | {args, input}, expected code, stderr/stdout pattern]
 const CASES = [
   ['check, no campaigns registered', (r) => (writeCfg(r, 'config_version = 1\n'), ['check']), 3, /no campaigns registered/],
@@ -115,6 +125,8 @@ const CASES = [
   // own stop is a config mistake, so exit 3, never 1 ("Scriptorium bug").
   ['build --force-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--force-check']), 3, /build stopped/],
   ['build --no-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--no-check']), 3, /build stopped/],
+  ['build --force-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--force-check']), 3, /where the site is built or what it keeps/],
+  ['build --no-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--no-check']), 3, /where the site is built or what it keeps/],
 
   ['unknown command', () => ['chek'], 1, /unknown command: chek/],
   ['unknown flag', (r) => (goodCfg(r), ['check', '--prot']), 1, /unknown flag --prot/],
@@ -144,7 +156,7 @@ test('#108: build with an unreadable publish.mode stops at the check step with e
     copyBadModeVault(root);
     const res = run(root, ['build']);
     assert.equal(res.code, 2, res.all);
-    assert.match(res.all, /hiding-setting-fault/);
+    assert.match(res.all, /settings-fault/);
     assert.doesNotMatch(res.all, /build stopped/);
   });
 });

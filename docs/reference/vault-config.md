@@ -44,9 +44,10 @@ The other settings are read like this:
 - **`publish.exclude_callouts`** and `excludeCallouts` in `vault.config.json`: when both are set,
   the stricter one is used. `true` beats a list, a list beats `false`, and two lists are joined. When
   neither is set, the built-in value is used. `yes` and `on` mean `true`; `no` and `off` mean `false`.
-- **A hiding setting the generator cannot read stops the build**, and `check` reports it as
-  `config/hiding-setting-fault`. That covers a misspelt name such as `exclude_sectoins`, a list
-  written as one word, and a switch set to a word other than the six above.
+- **A setting the generator cannot read stops the build**, and `check` reports it as
+  `config/settings-fault`. That covers a setting that hides something or one that says where the
+  site is built or what it keeps: a misspelt name such as `exclude_sectoins`, a list written as
+  one word, a folder to keep written with a slash, and a switch set to a word other than the six above.
 - **`publish.overrides.fields`** is read from the vault file only.
 - **The campaign's title** is `siteTitle` in `vault.config.json`. When a new campaign is made, its
   title comes from the `campaign:` line at the top of `_meta/vault-config.md`, and from the campaign's
@@ -79,7 +80,7 @@ table: `max_npcs:` under `landing:`.
 | `exclude_fields` | list of text | secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability | Hidden fields (edit) | Frontmatter fields that are never published, on any page. Joined with `excludeFields` in `vault.config.json`; see how the two files combine, above. |
 | `exclude_sections` | list of text | GM Notes, DM Notes, Player Notes, Source References, Reconciliation Context, Handoff to Reconcile | Hidden headings (edit) | Headings whose section is removed from every page, at any heading level. Joined with `excludeSections` in `vault.config.json`. |
 | `exclude_dirs` | list of text | _meta, _Templates | Hidden folders (edit) | Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. A trailing slash, a leading `./` and backslashes make no difference. `check` compares the two lists and says if they differ. |
-| `exclude_drafts` | on or off | false | - | Whether pages with `canon_status: DRAFT` are left out of the site. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. Any other value stops the build (`config/hiding-setting-fault`). |
+| `exclude_drafts` | on or off | false | - | Whether pages with `canon_status: DRAFT` are left out of the site. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. Any other value stops the build (`config/settings-fault`). |
 | `exclude_callouts` | on or off, or a list of text | false | - | Whether callout blocks are removed from pages. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used. |
 | `overrides` | table | No overrides | - | Per-page exceptions to the hidden fields, under `overrides.fields`. An entry the generator cannot read is dropped. |
 | `theme.palette` | table of colours | The built-in colours | Colours (shown) | The four site colours: `primary`, `accent`, `background` and `text`. The panel shows them but has no field to change them. |

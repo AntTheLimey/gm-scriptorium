@@ -51,7 +51,7 @@ const IDS = [
   'config/exclude-sections-divergence',
   'config/exclude-dirs-divergence',
   'config/exclude-fields-divergence',
-  'config/hiding-setting-fault',
+  'config/settings-fault',
   'config/site-vault-path-mismatch',
   'config/pack-shadowed',
   'config/theme-scheme-mismatch',

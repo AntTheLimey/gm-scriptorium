@@ -1348,7 +1348,7 @@ the settings file with `fs`; for that one synchronous call the facade answers `f
 `fs.readFileSync` for exactly two paths, the old settings file (from text `check` read through
 `src/vault/read.js`, so a failing disk still aborts and the panel's edited copy, ADR 0041, is still
 what is read) and the new one (always absent), and restores both functions in a `finally`. The stop
-faults it returns are reported by the new `config/hiding-setting-fault` ERROR, so a build stops at its
+faults it returns are reported by the new `config/settings-fault` ERROR, so a build stops at its
 check step with the generator's own words.
 
 Rejected: aligning the hand port. It would follow the first two changes in a few lines, but the stop

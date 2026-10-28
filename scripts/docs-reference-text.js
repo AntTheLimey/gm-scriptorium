@@ -555,7 +555,7 @@ module.exports = deepFreeze({
     },
     exclude_drafts: {
       type: 'on or off',
-      what: 'Whether pages with `canon_status: DRAFT` are left out of the site. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. Any other value stops the build (`config/hiding-setting-fault`).',
+      what: 'Whether pages with `canon_status: DRAFT` are left out of the site. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. Any other value stops the build (`config/settings-fault`).',
     },
     exclude_callouts: {
       type: 'on or off, or a list of text',
@@ -702,7 +702,7 @@ module.exports = deepFreeze({
       whatToDo: 'Run `gm-scriptorium check` and fix what it lists. A refused `build` writes nothing.',
     },
     3: {
-      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered. *Since 0.5.0.* A `build --force-check` or `build --no-check` that stops because a hiding setting in the vault cannot be read also exits 3; fix the setting the message names.',
+      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered. *Since 0.5.0.* A `build --force-check` or `build --no-check` that stops because a setting in the vault or its site file cannot be read also exits 3; fix the setting the message names.',
     },
     4: {
       whatToDo: 'Check that this computer can reach GitHub, then run `gm-scriptorium update --check` again.',
@@ -1083,8 +1083,8 @@ module.exports = deepFreeze({
       what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because `_meta/vault-config.md` gives its own `exclude_fields` list, which replaces the built-in one. A list in `vault.config.json` alone adds to the built-in list instead.',
       action: 'Add the field named in the message to your `exclude_fields` list.',
     },
-    'config/hiding-setting-fault': {
-      what: 'A setting that hides something from players cannot be read, or a name that looks like one is misspelt or in the wrong place. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, or a `mode:` other than `player` or `full`. The generator will not build until it is fixed, because its safe guess might not be what you meant. The message is the generator\'s own.',
+    'config/settings-fault': {
+      what: 'A setting the generator cannot read stops the build. It may be a setting that hides something from players, or one that says where the site is built or what it keeps. A name that looks like one of these but is misspelt or in the wrong place counts too. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, a `mode:` other than `player` or `full`, or a folder to keep written with a slash. The generator will not build until it is fixed, because its safe guess might not be what you meant. The message is the generator\'s own.',
       action: 'Fix the setting the message names. `on`, `off`, `yes`, `no`, `true` and `false` all work for a switch, and a list needs one entry per line.',
     },
     'config/site-vault-path-mismatch': {

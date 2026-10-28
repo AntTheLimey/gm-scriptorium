@@ -106,7 +106,7 @@ function siteConfigForSettings(jsonConfig) {
  *   - `configSources`: the RAW (un-defaulted, un-merged) list each file supplied, or undefined.
  *     config/exclude-*-divergence needs the vault's own list, never the merged one.
  *   - `stops`: the pin's stop-level faults, each with its `message`, exactly the faults that make
- *     the build refuse to run (lib/config.js assertNoStops). config/hiding-setting-fault reports them.
+ *     the build refuse to run (lib/config.js assertNoStops). config/settings-fault reports them.
  *
  * A settings file the pin cannot parse makes the pin throw; the build then stops with that error.
  * Here it is read as if the file held no settings (as the port did), and frontmatter/parse-error

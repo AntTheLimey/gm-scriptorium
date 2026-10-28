@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * config/hiding-setting-fault: from publish-v1.26.0 the pinned build refuses to run when a hiding
+ * config/settings-fault: from publish-v1.26.0 the pinned build refuses to run when a hiding
  * setting cannot be read (lib/config.js assertNoStops), because its safe fallback might not be what
  * the GM meant. `check` reports each such fault as an ERROR, with the pin's own words, so the GM
  * hears it from `check` and a `build` stops at its check step rather than inside the generator.
@@ -45,7 +45,7 @@ function withScratch(publishBlock, siteExtra, fn) {
   }
 }
 
-const faultsOf = (result) => result.envelope.findings.filter((f) => f.id === 'config/hiding-setting-fault');
+const faultsOf = (result) => result.envelope.findings.filter((f) => f.id === 'config/settings-fault');
 
 test('a misspelt hiding setting is an ERROR naming the setting it meant, and check fails', () => {
   withScratch('  mode: player\n  exclude_sectoins:\n    - GM Notes', {}, ({ configPath }) => {
@@ -99,5 +99,16 @@ test('a build stops at its check step with the same reason, and writes nothing',
     assert.equal(result.exitCode, 2);
     assert.match(result.human, /publish\.exclude_sectoins is not a setting\. Did you mean publish\.exclude_sections\?/);
     assert.equal(fs.existsSync(outDir), false);
+  });
+});
+
+test('a malformed folders-to-keep list is an ERROR too (the build refuses, though it hides nothing)', () => {
+  withScratch('  mode: player', { preserveDirs: ['maps/old'] }, ({ configPath }) => {
+    const { runCheckCommand } = requireFresh('../src/cli/check');
+    const result = runCheckCommand({ config: configPath }, 'fixture');
+    const found = faultsOf(result);
+    assert.equal(found.length, 1);
+    assert.equal(found[0].severity, 'error');
+    assert.equal(result.exitCode, 2);
   });
 });

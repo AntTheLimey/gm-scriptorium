@@ -2656,10 +2656,10 @@ The publish-v1.17.0 repin, [ADR 0016](../docs/decisions/0016-book-leaves-and-pag
 
 The publish-v1.26.0 repin, [ADR 0005](../docs/decisions/0005-generator-pin.md)'s last addendum. `check` reads a vault's hiding settings with the pin's own reader, which loads the bundled `yaml` package, and serves it the settings file for that one call. **Mark this OPEN: Linux and macOS tests prove the logic only; only the real executable shows that the packaged reader loads and that the served file is found by a Windows path.** Isolate config as in C135, and re-hash the real config before step 1 and after step 4. Use a scratch copy of the-long-lease example vault, registered as campaign `c219` with an output folder `S\out` that does not exist.
 
-1. `check c219 --config "S\config.toml"` exits 0 or 2 with no `config/hiding-setting-fault` finding.
-2. In the copy's `_meta\vault-config.md`, rename `exclude_sections:` under `publish:` to `exclude_sectoins:`. `check c219 --config "S\config.toml"` exits 2 with one `config/hiding-setting-fault` ERROR reading `publish.exclude_sectoins is not a setting. Did you mean publish.exclude_sections? The build will not run until this is fixed.`
+1. `check c219 --config "S\config.toml"` exits 0 or 2 with no `config/settings-fault` finding.
+2. In the copy's `_meta\vault-config.md`, rename `exclude_sections:` under `publish:` to `exclude_sectoins:`. `check c219 --config "S\config.toml"` exits 2 with one `config/settings-fault` ERROR reading `publish.exclude_sectoins is not a setting. Did you mean publish.exclude_sections? The build will not run until this is fixed.`
 3. `build c219 --config "S\config.toml"` exits 2 with the same finding, and `S\out` does not exist.
-4. Put the name back and add `  exclude_callouts: "no"` under `publish:`. `check c219 --config "S\config.toml"` reports no `config/hiding-setting-fault`. Re-hash the real config.
+4. Put the name back and add `  exclude_callouts: "no"` under `publish:`. `check c219 --config "S\config.toml"` reports no `config/settings-fault`. Re-hash the real config.
 
 ### C220: the GURPS to-hit data module is not in the executable and no page carries its data, in the real win-x64 exe
 
