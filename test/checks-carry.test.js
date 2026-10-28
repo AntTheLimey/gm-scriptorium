@@ -4,8 +4,8 @@
  * What `check` says about a pack's leftover settings on a vault whose settings moved to
  * _meta/vault-config.yaml (rung 3b). Each test runs at module level on a copy of the sample vault
  * that the pin's own move has already run on: contextFromSite builds the context, runChecks runs
- * the enabled checks. The `check` command still refuses a moved vault, so it is not driven here;
- * where the design says "check exits 2", the test asserts a finding of severity error instead.
+ * the enabled checks. The command itself is driven in test/vault-settings-moved-cli.test.js; here
+ * "check exits 2" is asserted as a finding of severity error.
  *
  * Expected values are typed by hand from the sample vault's yaml after the move and from the pin's
  * rules, never read from the code under test.
@@ -172,17 +172,22 @@ test('a legacy-layout vault gets none of the three ids', () => {
   }
 });
 
-test('a yaml the pin cannot parse stops the context with the pin\'s own words, and the carry checks add nothing', () => {
+test('a yaml the pin cannot parse is one settings-fault error naming the file, and the carry checks add nothing', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-carry-'));
   try {
     const { vaultPath } = moveVaultCopy(SAMPLE, root);
     const file = path.join(vaultPath, '_meta', 'vault-config.yaml');
     fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('folders: ["_meta", "_Templates"]', 'folders: ["_meta", "_Templates"'));
     const pack = { searchEnabled: true, excludeSections: ['Pack Only Secret'] };
-    assert.throws(() => contextOf(vaultPath, root, pack), /_meta\/vault-config\.yaml is not valid YAML/);
-    // Handed the same vault directly, the carry checks have nothing to compare with and say nothing.
-    const ctx = { campaign: 'x', vaultPath, settingsLayout: 'new', rawSiteConfig: pack };
-    assert.deepEqual([carry.runPackHidingNotCarried(ctx), carry.runPackSettingNotCarried(ctx), carry.runPackSettingDiffers(ctx)], [[], [], []]);
+    // The context is built (the CLI reports the file as a finding), it does not throw.
+    const ctx = contextOf(vaultPath, root, pack);
+    const findings = runChecks(ctx);
+    const faults = findings.filter((f) => f.id === 'config/settings-fault');
+    assert.equal(faults.length, 1);
+    assert.equal(faults[0].severity, 'error');
+    assert.equal(faults[0].path, '_meta/vault-config.yaml');
+    assert.match(faults[0].message, /^_meta\/vault-config\.yaml is not valid YAML: .* The build will not run until this is fixed\.$/);
+    assert.deepEqual(carryOf(findings), []);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -204,6 +209,7 @@ test('sections are held as the build matches headings: case does not matter, a d
   // The build reads a hide-list name through its first reading only: this one is "Display", not "Real Name".
   assert.equal(isHeldByVault('excludeSections', ['[[Real Name|Display]]'], ['Real Name']), false);
   assert.equal(isHeldByVault('excludeSections', ['[[Real Name|Display]]'], ['Display']), true);
+  assert.equal(isHeldByVault('excludeSections', ['Real Name'], ['[[Real Name|Display]]']), false);
   // A zero-width space inside a name is taken out, so it reads as the plain name.
   assert.equal(isHeldByVault('excludeSections', ['GM\u200bNotes'], ['GMNotes']), true);
 });

@@ -18,6 +18,9 @@ const pinned = require('../generator/pinned');
  *   - a setting the pack and the vault both set, to different values, is a WARN
  *     (config/pack-setting-differs); the vault's value is the one used.
  *
+ * It also reports a _meta/vault-config.md that the move left beside the yaml
+ * (config/leftover-settings-file, WARN), from the pin's own "dropped" fault.
+ *
  * The findings come from the pin's own fault list (kind 'old-name', source 'site'), so the keys
  * and settings are the pin's, not a list kept here. A setting the pin reports but no longer reads
  * (landingTagline, `read: false` in its registry entry) is never reported: there is nothing to
@@ -120,6 +123,19 @@ function computeCarryFindings(ctx) {
   }
   const findings = [];
   for (const fault of faults) {
+    // The pin's own "dropped" fault for the old settings page (setting null; a dropped folder entry has one).
+    if (fault.kind === 'dropped' && fault.setting === null && fault.name === '_meta/vault-config.md') {
+      findings.push(createFinding({
+        id: 'config/leftover-settings-file',
+        severity: 'warn',
+        category: 'config',
+        campaign: ctx.campaign,
+        path: '_meta/vault-config.md',
+        message: "_meta/vault-config.md is left over from before gm-apprentice's update and is not read. This vault's settings are in _meta/vault-config.yaml.",
+        data: {},
+      }));
+      continue;
+    }
     if (fault.kind !== 'old-name' || fault.source !== 'site' || !fault.setting) continue;
     if (pinIgnores(fault)) continue;
     const vaultValue = valueAt(settings.values, fault.setting);
@@ -169,4 +185,5 @@ module.exports = {
   runPackHidingNotCarried: only('config/pack-hiding-not-carried'),
   runPackSettingNotCarried: only('config/pack-setting-not-carried'),
   runPackSettingDiffers: only('config/pack-setting-differs'),
+  runLeftoverSettingsFile: only('config/leftover-settings-file'),
 };

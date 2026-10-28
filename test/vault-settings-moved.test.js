@@ -17,9 +17,9 @@ const { ConfigError, VaultUnreachableError } = require('../src/util/errors');
 
 /*
  * Issue #171. The gm-apprentice plugin's update can move a vault's settings from
- * _meta/vault-config.md into _meta/vault-config.yaml. This version reads only the .md, so every
- * "is this a vault?" check must count the .yaml too, and every command must refuse a moved or mixed
- * vault with one exit-3 message. Four states, by which of the two files exist:
+ * _meta/vault-config.md into _meta/vault-config.yaml. Every "is this a vault?" check counts the
+ * .yaml too, and a moved or mixed vault is accepted like any other (the refusal this file once
+ * pinned was removed on purpose in rung 3b). Four states, by which of the two files exist:
  *   old (.md only), moved (.yaml only), mixed (both), none (neither).
  *
  * Expected messages are literals on purpose, never read from the code under test. Each test builds
@@ -43,29 +43,6 @@ function makeVault(root, name, state) {
   if (state === 'old' || state === 'mixed') fs.writeFileSync(path.join(dir, '_meta', 'vault-config.md'), MD_TEXT);
   if (state === 'moved' || state === 'mixed') fs.writeFileSync(path.join(dir, '_meta', 'vault-config.yaml'), YAML_TEXT);
   return dir;
-}
-
-const ISSUE = 'https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/171';
-
-function movedMessage(campaign, vaultPath) {
-  return (
-    `campaign "${campaign}": ${vaultPath} keeps its settings in _meta/vault-config.yaml, the file the gm-apprentice plugin's update moves a vault's settings to. ` +
-    'This version of GM-Scriptorium reads only _meta/vault-config.md, so it won\'t check, build or serve this campaign. ' +
-    'Nothing in the vault was read or changed. ' +
-    'Don\'t create, copy or edit a vault-config.md to get round this. ' +
-    `Support comes in a later GM-Scriptorium release; to follow it, see ${ISSUE}`
-  );
-}
-
-function mixedMessage(campaign, vaultPath) {
-  return (
-    `campaign "${campaign}": ${vaultPath} keeps its settings in _meta/vault-config.yaml, the file the gm-apprentice plugin's update moves a vault's settings to. ` +
-    'Its _meta/vault-config.md is a leftover that gm-apprentice ignores. ' +
-    'This version of GM-Scriptorium reads only _meta/vault-config.md, so it won\'t check, build or serve this campaign. ' +
-    'Nothing in the vault was read or changed. ' +
-    'Don\'t create, copy or edit a vault-config.md to get round this. ' +
-    `Support comes in a later GM-Scriptorium release; to follow it, see ${ISSUE}`
-  );
 }
 
 const NONE_MESSAGE = (campaign, vaultPath) =>
@@ -118,32 +95,16 @@ test('(a) a vault-config.yaml that is a folder counts as present', (t) => {
 
 // === (b) locateVault ========================================================================
 
-test('(b) locateVault refuses a moved vault with the exact message and reason settings-moved', (t) => {
+test('(b) locateVault returns for a moved vault', (t) => {
   const root = scratch(t);
   const dir = makeVault(root, 'moved', 'moved');
-  assert.throws(
-    () => locateVault(dir, 'camp'),
-    (err) => {
-      assert.ok(err instanceof VaultUnreachableError);
-      assert.equal(err.reason, 'settings-moved');
-      assert.equal(err.message, movedMessage('camp', dir));
-      return true;
-    },
-  );
+  assert.deepEqual(locateVault(dir, 'camp'), { vaultPath: dir, campaign: 'camp' });
 });
 
-test('(b) locateVault refuses a mixed vault with the exact message, naming the leftover', (t) => {
+test('(b) locateVault returns for a mixed vault', (t) => {
   const root = scratch(t);
   const dir = makeVault(root, 'mixed', 'mixed');
-  assert.throws(
-    () => locateVault(dir, 'camp'),
-    (err) => {
-      assert.ok(err instanceof VaultUnreachableError);
-      assert.equal(err.reason, 'settings-moved');
-      assert.equal(err.message, mixedMessage('camp', dir));
-      return true;
-    },
-  );
+  assert.deepEqual(locateVault(dir, 'camp'), { vaultPath: dir, campaign: 'camp' });
 });
 
 test('(b) locateVault still returns for an old vault', (t) => {
@@ -257,29 +218,26 @@ test('(e) findVaultChild still returns a child that holds vault-config.md, and n
 
 // === (f) the setup screen's vault check =====================================================
 
-test('(f) checkVault on a moved folder gives the refusal, shows no child search, and flags settingsMoved', async (t) => {
+test('(f) checkVault finds a moved folder as a vault, says its settings are in the yaml, and shows no child search', async (t) => {
   const root = scratch(t);
   const dir = makeVault(root, 'moved', 'moved');
   makeVault(dir, 'inner', 'old'); // an old-layout child that a child search would offer
   const res = await checkVault(dir, { name: 'camp' });
-  assert.equal(res.state, 'bad');
-  assert.equal(res.rule, movedMessage('camp', dir));
+  assert.equal(res.state, 'ok');
+  assert.equal(res.rule, null);
   assert.equal(res.facts.candidate, null);
   assert.equal(res.facts.settingsMoved, true);
   assert.equal(res.facts.found, true);
-  assert.equal(res.facts.isVault, false);
+  assert.equal(res.facts.isVault, true);
 });
 
-test('(f) checkVault on a mixed folder gives the mixed refusal with no child search', async (t) => {
+test('(f) checkVault finds a mixed folder as a vault whose settings are in the yaml', async (t) => {
   const root = scratch(t);
   const dir = makeVault(root, 'mixed', 'mixed');
-  makeVault(dir, 'inner', 'old');
   const res = await checkVault(dir, { name: 'camp' });
-  assert.equal(res.state, 'bad');
-  assert.equal(res.rule, mixedMessage('camp', dir));
-  assert.equal(res.facts.candidate, null);
+  assert.equal(res.state, 'ok');
+  assert.equal(res.facts.isVault, true);
   assert.equal(res.facts.settingsMoved, true);
-  assert.equal(res.facts.found, true);
 });
 
 test('(f) checkVault leaves settingsMoved out of every other result', async (t) => {

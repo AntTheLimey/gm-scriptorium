@@ -401,7 +401,14 @@ function contextFromSite(ctxInfo, vaultPath, site) {
   let jsonConfig = { ...siteConfig, vaultPath };
   if (moved) {
     const { md, yaml } = readSettingsFiles(vaultPath);
-    const resolved = pinned.resolveSiteConfig(vaultPath, siteConfig, { md, yaml }).config;
+    // A yaml the pin cannot parse is not thrown here: `check` reports it as a finding (config/settings-fault,
+    // src/vault/publishset.js), and the build stops at the check step. The pack stands in until then.
+    let resolved = siteConfig;
+    try {
+      resolved = pinned.resolveSiteConfig(vaultPath, siteConfig, { md, yaml }).config;
+    } catch {
+      // see above
+    }
     jsonConfig = { ...resolved, vaultPath };
   }
 

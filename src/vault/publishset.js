@@ -129,8 +129,9 @@ function readSettingsFiles(vaultPath) {
  *     the build refuse to run (lib/config.js assertNoStops). config/settings-fault reports them.
  *
  * A settings file the pin cannot parse makes the pin throw; the build then stops with that error.
- * Here it is read as if the file held no settings (as the port did), and frontmatter/parse-error
- * reports the file.
+ * Here it is read as if the file held no settings (as the port did). A vault-config.md is then
+ * reported by frontmatter/parse-error; a vault-config.yaml, which no index covers, is added to `stops`
+ * with the pin's message, so config/settings-fault reports it.
  *
  * @returns {{ publishConfig: object, configSources: object, stops: object[], switchWords: object[] }}
  */
@@ -149,11 +150,15 @@ function loadPublishConfig(vaultPath, jsonConfig = {}, rawSiteConfig = undefined
   // the pin makes of it (the moved keys are no longer read there, and what they hid would publish).
   const site = siteConfigForSettings(moved && rawSiteConfig ? rawSiteConfig : jsonConfig);
   let settings;
+  let unreadable = null;
   try {
     settings = pinned.readPublishSettings(vaultPath, site, { md, yaml });
   } catch (err) {
     if (md === null && yaml === null) throw err;
     settings = pinned.readPublishSettings(vaultPath, site, { md: null, yaml: null });
+    // A broken vault-config.md is reported by frontmatter/parse-error, which indexes every note. The
+    // yaml is no note, so nothing else would name it: it becomes a stop, reported by config/settings-fault.
+    if (moved) unreadable = { name: 'vault-config.yaml', setting: null, kind: 'unreadable', level: 'stop', message: String(err.message) };
   }
   const pc = settings.config;
 
@@ -201,7 +206,7 @@ function loadPublishConfig(vaultPath, jsonConfig = {}, rawSiteConfig = undefined
     if (typeof raw === 'string' && pinned.readSwitch(raw) === false) switchWords.push({ setting: `publish.${key}`, raw });
   }
 
-  return { publishConfig, configSources, stops: settings.stops, switchWords };
+  return { publishConfig, configSources, stops: unreadable ? [...settings.stops, unreadable] : settings.stops, switchWords };
 }
 
 // ---------------------------------------------------------------------------

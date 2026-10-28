@@ -275,6 +275,15 @@ const CHECKS = Object.freeze([
       'On a vault whose settings moved to _meta/vault-config.yaml, the pack\'s vault.config.json and the vault\'s settings both set the same thing, to different values. The vault\'s value is the one used. Run "gm-scriptorium carry" to settle it.',
   },
   {
+    id: 'config/leftover-settings-file',
+    category: 'config',
+    defaultSeverity: 'warn',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'A vault whose settings are in _meta/vault-config.yaml still holds _meta/vault-config.md. That file is left over from before gm-apprentice\'s update and is not read; the vault\'s settings are in the yaml. The generator reports it as a dropped file, and this check repeats that. Delete the old file once you have checked nothing in it is missing from the yaml.',
+  },
+  {
     id: 'config/theme-scheme-mismatch',
     category: 'config',
     defaultSeverity: 'info',

@@ -1084,7 +1084,7 @@ module.exports = deepFreeze({
       action: 'Add the field named in the message to your `exclude_fields` list.',
     },
     'config/settings-fault': {
-      what: 'A setting the generator cannot read stops the build. It may be a setting that hides something from players, or one that says where the site is built or what it keeps. A name that looks like one of these but is misspelt or in the wrong place counts too. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, a `mode:` other than `player` or `full`, or a folder to keep written with a slash. The generator will not build until it is fixed, because its safe guess might not be what you meant. The message is the generator\'s own.',
+      what: 'A setting the generator cannot read stops the build. It may be a setting that hides something from players, or one that says where the site is built or what it keeps. A name that looks like one of these but is misspelt or in the wrong place counts too. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, a `mode:` other than `player` or `full`, or a folder to keep written with a slash. The generator will not build until it is fixed, because its safe guess might not be what you meant. A `_meta/vault-config.yaml` that is not valid YAML is reported here too, naming the file. The message is the generator\'s own.',
       action: 'Fix the setting the message names. `on`, `off`, `yes`, `no`, `true` and `false` all work for a switch, and a list needs one entry per line.',
     },
     'config/pack-hiding-not-carried': {
@@ -1098,6 +1098,10 @@ module.exports = deepFreeze({
     'config/pack-setting-differs': {
       what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, and both it and the campaign pack\'s `vault.config.json` set the same thing, to different values. The vault\'s value is the one the site uses. The message shows both.',
       action: 'Run `gm-scriptorium carry <campaign>` to settle it, or edit whichever file is wrong.',
+    },
+    'config/leftover-settings-file': {
+      what: 'Your vault\'s settings are in `_meta/vault-config.yaml`, and `_meta/vault-config.md` is still there. gm-apprentice\'s update leaves that old file behind. It is not read. It is a WARN.',
+      action: 'Check that nothing in `_meta/vault-config.md` is missing from `_meta/vault-config.yaml`, then delete the old file.',
     },
     'config/switch-word-now-off': {
       what: '`publish.exclude_drafts` or `publish.exclude_callouts` in `_meta/vault-config.md` is written as `no`, `off` or `"false"`. Up to GM-Scriptorium 0.5.0 any text there counted as on, so these hid draft pages or callouts. The generator now reads them as off, so those pages and callouts are published.',
