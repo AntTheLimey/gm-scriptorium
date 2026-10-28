@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const { resolveCampaignContext, FORCE_SPLIT_MESSAGE } = require('./args');
 const { resolveVaultContext, runCheckForContext, asPackProblem } = require('./check');
@@ -14,6 +15,9 @@ const { suggestedSlug } = require('../setup/foldermap');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { SCHEMA_VERSION } = require('../report/json');
 const pkg = require('../../package.json');
+
+/** The pin's assertNoStops message for the build command: "build stopped: the settings have a fault ...". */
+const HIDING_STOP_RE = /^build stopped: the settings have a fault/;
 
 /**
  * Issue #104: a campaign registered without an output folder used to reach path.resolve(undefined)
@@ -370,6 +374,22 @@ function runBuildForContext(ctxInfo, flags) {
   }
 
   if (!result.ok) {
+    // The generator refuses to build when a hiding setting cannot be read (lib/config.js
+    // assertNoStops, thrown from build()). Plain `build` stops earlier, at the check step (exit 2);
+    // with --force-check or --no-check it reaches here. It is a settings mistake, not a Scriptorium
+    // bug, so exit 3 through the existing class (DEVELOPING.md, "Exit codes for user errors").
+    if (HIDING_STOP_RE.test(result.error.message)) {
+      try {
+        fs.rmSync(result.stagingRoot, { recursive: true, force: true });
+      } catch {
+        /* best-effort: a cleanup failure must never change the code the user sees */
+      }
+      throw new VaultUnreachableError(result.error.message, {
+        path: vaultPath,
+        campaign: ctxInfo.campaign,
+        reason: 'hiding-setting-fault',
+      });
+    }
     lines.push(`build failed: ${result.error.message}`);
     for (const re of result.renderErrors) lines.push(`  ${renderErrorLine(re)}`);
     lines.push(`staging tree kept for inspection at: ${result.stagingRoot}`);
