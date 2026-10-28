@@ -144,6 +144,8 @@ const { resolveGenrePreset } = require('gm-apprentice-publish/lib/theme');
 // wikilink inside a title (by its label), which src/vault/publishset.js's display-title port calls.
 // linkText, wikilinkRe and parseWikilink are how the pin's Connections model reads a relationship's
 // target (lib/connections.js:159-169); src/build/connections.js resolves targets the same way.
+// #194: src/vault/links.js (check) finds wikilinks with the pin's own pattern (wikilinkRe, lib/wikilink.js:22-24,
+// over WIKILINK_SOURCE at :18) and splits them with its parser (parseWikilink, lib/wikilink.js:40-60), never a hand copy.
 const { labelsForLinks, linkText, wikilinkRe, parseWikilink } = require('gm-apprentice-publish/lib/wikilink');
 
 // lib/frontmatter.js:155 and lib/frontmatter-shape.js:110 (module.exports). New at

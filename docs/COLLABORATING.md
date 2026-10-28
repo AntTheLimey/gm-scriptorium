@@ -77,7 +77,8 @@ what `leak/l5-gm-heading-survives` reads headings with, `docs/decisions/0045-lea
 `resolveGenrePreset` (`lib/theme.js`), `labelsForLinks` (`lib/wikilink.js`, from publish-v1.17.0;
 `src/vault/publishset.js` prints a wikilink in a title by its label, as the scanner does),
 `linkText`, `wikilinkRe`, `parseWikilink` (also `lib/wikilink.js`) and `buildLinkMap` (`lib/scanner.js`, these four
-from publish-v1.21.0; the Connections lane resolves a relationship's target as the pin does),
+from publish-v1.21.0; the Connections lane resolves a relationship's target as the pin does, and `check` finds and
+splits wikilinks with `wikilinkRe` and `parseWikilink`, `docs/decisions/0043-escaped-pipe-read-shim.md`, addendum on issue 194),
 `cutValueComments` (`lib/frontmatter.js`) and `shapeFrontmatter` (`lib/frontmatter-shape.js`, both from
 publish-v1.17.0; `publishset.js` reads frontmatter values as the scanner does), `canonicalNfc`,
 `truncateGraphemes` (`lib/unicode.js`), `metadataBadgesFor`, `TYPE_BADGE_FIELDS`, `DIR_LABELS`
@@ -529,7 +530,7 @@ easier to catch or avoid:
    separate vendoring step.
 6. **A renamed or removed export** from any of the modules the facade re-exports
    (`lib/processor.js`, `lib/publish-decision.js`, `lib/manifest.js`, `lib/config.js`,
-   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`, `lib/banners.js`) is the highest-blast-radius
+   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`, `lib/banners.js`, `lib/wikilink.js`) is the highest-blast-radius
    single change, because every current and future Scriptorium consumer of that function goes
    through the one facade file.
 
