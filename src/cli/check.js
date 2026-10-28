@@ -376,8 +376,8 @@ function resolveVaultContext(ctxInfo) {
  * On a vault whose settings moved to _meta/vault-config.yaml the pack is not required to carry
  * folderMap or excludeDirs (the yaml does), and `jsonConfig` is the pack resolved against the yaml
  * (each moved key as the vault's settings give it, in its old JSON spelling), with the pack as read
- * in `rawSiteConfig` and `settingsLayout: 'new'` beside it. On any other vault `jsonConfig` is the
- * pack and the vault path, as it always was.
+ * returned beside it as `rawSiteConfig`, with `settingsLayout`. On any other vault `jsonConfig` is
+ * the pack and the vault path, as it always was.
  *
  * @throws {VaultUnreachableError} a pack that cannot be used
  */
@@ -402,12 +402,16 @@ function contextFromSite(ctxInfo, vaultPath, site) {
   if (moved) {
     const { md, yaml } = readSettingsFiles(vaultPath);
     const resolved = pinned.resolveSiteConfig(vaultPath, siteConfig, { md, yaml }).config;
-    jsonConfig = { ...resolved, vaultPath, rawSiteConfig: siteConfig, settingsLayout: 'new' };
+    jsonConfig = { ...resolved, vaultPath };
   }
 
   return {
     vaultPath,
     jsonConfig,
+    // The pack as read, and which layout the vault's settings are in. Siblings of jsonConfig, which
+    // holds only site-file content: on a moved vault jsonConfig is the pack resolved against the yaml.
+    rawSiteConfig: siteConfig,
+    settingsLayout: moved ? 'new' : 'legacy',
     vaultMismatch,
     siteDir: site.siteDir,
     siteSource: site.siteSource,
@@ -437,13 +441,15 @@ function contextFromSite(ctxInfo, vaultPath, site) {
  * @returns {{ envelope: object, exitCode: number, human: string, checkCtx: object }}
  */
 function runCheckForContextWithContext(ctxInfo, flags, opts = {}) {
-  const { vaultPath, jsonConfig, vaultMismatch, packShadowed, packToml } = resolveVaultContext(ctxInfo);
+  const { vaultPath, jsonConfig, rawSiteConfig, settingsLayout, vaultMismatch, packShadowed, packToml } = resolveVaultContext(ctxInfo);
 
   const graph = Boolean(flags.graph);
   const checkCtx = buildCheckContext({
     campaign: ctxInfo.campaign,
     vaultPath,
     jsonConfig,
+    rawSiteConfig,
+    settingsLayout,
     outputPath: ctxInfo.output ? path.resolve(ctxInfo.output) : null,
     graph,
     vaultMismatch,

@@ -12,6 +12,9 @@
 
 const fs = require('fs');
 const path = require('path');
+// Loaded first, for its side effect: the facade seeds the generator's redactions before the pin's
+// template tree loads, and loading the pin's move below would otherwise load that tree too early.
+require('../../src/generator/pinned');
 const { planMove, applyMove } = require('gm-apprentice-publish/lib/settings/move');
 
 /**

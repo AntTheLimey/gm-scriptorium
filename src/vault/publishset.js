@@ -86,8 +86,6 @@ function uncycled(data) {
 function siteConfigForSettings(jsonConfig) {
   const site = { ...(jsonConfig || {}) };
   delete site.outputDir;
-  delete site.rawSiteConfig;
-  delete site.settingsLayout;
   return site;
 }
 
@@ -136,7 +134,7 @@ function readSettingsFiles(vaultPath) {
  *
  * @returns {{ publishConfig: object, configSources: object, stops: object[], switchWords: object[] }}
  */
-function loadPublishConfig(vaultPath, jsonConfig = {}) {
+function loadPublishConfig(vaultPath, jsonConfig = {}, rawSiteConfig = undefined) {
   const { layout, md, yaml } = readSettingsFiles(vaultPath);
   const moved = layout === 'new';
   let publish = {};
@@ -149,10 +147,6 @@ function loadPublishConfig(vaultPath, jsonConfig = {}) {
 
   // On the moved layout the pin is handed the pack as read, so a hiding key left in it is the stop
   // the pin makes of it (the moved keys are no longer read there, and what they hid would publish).
-  // rawSiteConfig is read by destructuring: it is a key src/cli/check.js adds to the context's
-  // jsonConfig, not a key of the site's vault.config.json (test/docs-reference-vault.test.js
-  // scans for the dotted spelling of those).
-  const { rawSiteConfig } = jsonConfig;
   const site = siteConfigForSettings(moved && rawSiteConfig ? rawSiteConfig : jsonConfig);
   let settings;
   try {
@@ -428,8 +422,8 @@ function pairStoryFiles(pages) {
  *   switchWords: object[],
  * }}
  */
-function computePublishedSet(vaultPath, jsonConfig) {
-  const { publishConfig, configSources, stops, switchWords } = loadPublishConfig(vaultPath, jsonConfig);
+function computePublishedSet(vaultPath, jsonConfig, rawSiteConfig = undefined) {
+  const { publishConfig, configSources, stops, switchWords } = loadPublishConfig(vaultPath, jsonConfig, rawSiteConfig);
   const manifest = loadManifest(vaultPath);
   // lib/config.js's scanConfigFor(config, publishConfig): the scan must see the already-merged,
   // already-unioned exclude_dirs (vault-config.md's publish.exclude_dirs unioned with the site

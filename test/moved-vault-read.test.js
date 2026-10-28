@@ -9,9 +9,6 @@
  *
  * Every expected value is typed out by hand from the sample vault's settings (its yaml after the
  * move) and from the pin's rules, never read from the code under test.
- *
- * The src/ modules are required before the helper: the helper loads the pin directly, and the
- * facade must be the first to load the generator (src/generator/redactions.js).
  */
 
 const test = require('node:test');
@@ -48,6 +45,14 @@ function editYaml(vault, from, to) {
   fs.writeFileSync(file, text.replace(from, to));
 }
 
+function fullSite(root) {
+  const dir = path.join(root, 'legacy-site');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'vault.config.json');
+  fs.writeFileSync(file, JSON.stringify({ searchEnabled: true, excludeDirs: ['_meta'], folderMap: { Locations: 'locations' } }));
+  return file;
+}
+
 function writeSite(root, extra) {
   const dir = path.join(root, 'site');
   fs.mkdirSync(dir, { recursive: true });
@@ -80,10 +85,15 @@ test('a pack with no folderMap and no excludeDirs is accepted on a moved vault, 
     const ctxInfo = { campaign: 'x', vault, site_config: siteConfigPath };
     const site = { siteSource: 'site_config', siteConfigPath, siteDir: path.dirname(siteConfigPath), packShadowed: null };
     const ctx = contextFromSite(ctxInfo, vault, site);
-    assert.equal(ctx.jsonConfig.settingsLayout, 'new');
-    assert.deepEqual(ctx.jsonConfig.rawSiteConfig, { searchEnabled: true });
+    assert.equal(ctx.settingsLayout, 'new');
+    assert.deepEqual(ctx.rawSiteConfig, { searchEnabled: true });
+    assert.equal('rawSiteConfig' in ctx.jsonConfig || 'settingsLayout' in ctx.jsonConfig, false, 'jsonConfig holds only site-file content');
     assert.equal(ctx.jsonConfig.vaultPath, vault);
     assert.deepEqual(ctx.jsonConfig.excludeSections.slice(0, 2), ['GM Notes', 'DM Notes']);
+
+    const legacy = contextFromSite({ campaign: 'x', vault: SAMPLE, site_config: fullSite(root) }, SAMPLE, { ...site, siteConfigPath: fullSite(root) });
+    assert.equal(legacy.settingsLayout, 'legacy');
+    assert.deepEqual(Object.keys(legacy.jsonConfig).sort(), ['excludeDirs', 'folderMap', 'searchEnabled', 'vaultPath']);
 
     assert.throws(
       () => contextFromSite({ campaign: 'x', vault: SAMPLE, site_config: siteConfigPath }, SAMPLE, site),
@@ -106,9 +116,9 @@ test('the staged vault.config.json on a moved vault carries none of the keys the
     };
     const staging = path.join(root, 'staging');
     const out = path.join(root, 'out');
-    const file = writeStagedConfig({ ...raw, rawSiteConfig: raw, settingsLayout: 'new' }, vault, staging, out);
+    const file = writeStagedConfig(raw, vault, staging, out);
     const staged = JSON.parse(fs.readFileSync(file, 'utf8'));
-    for (const key of ['siteTitle', 'folderMap', 'excludeDirs', 'excludeSections', 'excludeCallouts', 'landingTagline', 'attachmentsDir', 'rawSiteConfig', 'settingsLayout']) {
+    for (const key of ['siteTitle', 'folderMap', 'excludeDirs', 'excludeSections', 'excludeCallouts', 'landingTagline', 'attachmentsDir']) {
       assert.equal(Object.prototype.hasOwnProperty.call(staged, key), false, `${key} must not reach the generator`);
     }
     assert.equal(staged.customNote, 'keep');
@@ -171,8 +181,7 @@ test('config/settings-fault on a moved vault names _meta/vault-config.yaml as it
     editYaml(vault, '    mode: player\n', '    mode: player\n    sectoins: ["GM Notes"]\n');
     const { stops } = loadPublishConfig(vault, {});
     assert.equal(stops.length, 1);
-    const jsonConfig = { settingsLayout: 'new', rawSiteConfig: {} };
-    const found = runSettingsFault({ campaign: 'x', publishSet: { stops }, jsonConfig });
+        const found = runSettingsFault({ campaign: 'x', publishSet: { stops }, jsonConfig: {}, settingsLayout: 'new', rawSiteConfig: {} });
     assert.equal(found.length, 1);
     assert.equal(found[0].path, '_meta/vault-config.yaml');
     const legacy = runSettingsFault({ campaign: 'x', publishSet: { stops }, jsonConfig: {} });
@@ -183,7 +192,29 @@ test('config/settings-fault on a moved vault names _meta/vault-config.yaml as it
 test('a leftover hiding key in the pack of a moved vault is a stop, not a silent miss', () => {
   withMoved((vault) => {
     const raw = { excludeSections: ['Foo'] };
-    const { stops } = loadPublishConfig(vault, { rawSiteConfig: raw, settingsLayout: 'new' });
+    const { stops } = loadPublishConfig(vault, {}, raw);
     assert.match(stops[0].message, /^excludeSections in the site folder's vault\.config\.json is no longer read/);
   });
+});
+
+test('with no raw pack given, loadPublishConfig on a moved vault reads the yaml and finds no stop', () => {
+  withMoved((vault) => {
+    const loaded = loadPublishConfig(vault, {});
+    assert.deepEqual(loaded.stops, []);
+    assert.deepEqual(loaded.publishConfig.exclude_dirs.slice(0, 2), ['_meta', '_Templates']);
+  });
+});
+
+// What the pin renders (its loadPublishConfig theme through generateThemeCSS --bg), typed by hand.
+test('a moved vault with no palette: no genre reads the pin\'s light default, an unknown genre its dark one, a known genre none', () => {
+  const noPalette = (genre) => (vault) => {
+    const file = path.join(vault, '_meta', 'vault-config.yaml');
+    let text = fs.readFileSync(file, 'utf8').replace(/    palette:\n(      .*\n){4}/, '');
+    if (genre) text = text.replace('  theme:\n', `  theme:\n    genre: "${genre}"\n`);
+    fs.writeFileSync(file, text);
+    return paletteScheme(vault);
+  };
+  assert.deepEqual(withMoved(noPalette(null)), { scheme: 'light', background: '#e8f0f3' });
+  assert.deepEqual(withMoved(noPalette('nonesuch')), { scheme: 'dark', background: '#1a1f25' });
+  assert.deepEqual(withMoved(noPalette('horror')), { scheme: null, background: null });
 });

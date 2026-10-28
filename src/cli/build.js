@@ -167,7 +167,7 @@ function baseEnvelope(campaign, vaultPath, outputPath, vaultMismatch, generatedA
  */
 function runBuildForContext(ctxInfo, flags) {
   const generatedAt = new Date().toISOString();
-  const { vaultPath, jsonConfig, vaultMismatch, siteDir, packShadowed, packToml } = resolveVaultContext(ctxInfo);
+  const { vaultPath, jsonConfig, rawSiteConfig, vaultMismatch, siteDir, packShadowed, packToml } = resolveVaultContext(ctxInfo);
   // ADR 0019, Structural decision 4: the asset step's FILE checks (P3a-FR06) run here, before
   // runAtomicBuild, so a refusal writes nothing -- sweepStaleSiblings never runs, and --force
   // never reaches planThemeAssets (only pack.toml's own SYNTAX validation, inside
@@ -420,7 +420,7 @@ function runBuildForContext(ctxInfo, flags) {
   }
 
   lines.push(`built ${result.pagesWritten} file(s) in ${result.elapsedMs.toFixed(1)}ms -> ${result.finalOut}`);
-  const unmappedByDir = unmappedDirectoryCounts(computePublishedSet(vaultPath, jsonConfig).unmappedDirectory);
+  const unmappedByDir = unmappedDirectoryCounts(computePublishedSet(vaultPath, jsonConfig, rawSiteConfig).unmappedDirectory);
   // Issue #30, FR-01: the generator's own warn-level lines, human and JSON alike. Human-only
   // Scriptorium warnings below are unchanged. A zero-warning build prints nothing extra.
   const generatorWarnings = withoutScaffoldNoise(

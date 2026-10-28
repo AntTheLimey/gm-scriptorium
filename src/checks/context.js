@@ -59,6 +59,8 @@ function buildCheckContext({
   campaign,
   vaultPath,
   jsonConfig,
+  rawSiteConfig = undefined,
+  settingsLayout = 'legacy',
   outputPath = null,
   graph = false,
   vaultMismatch = null,
@@ -67,7 +69,7 @@ function buildCheckContext({
   deferOutputScan = false,
 }) {
   const index = buildResolutionIndex(vaultPath, jsonConfig);
-  const publishSet = computePublishedSet(vaultPath, jsonConfig);
+  const publishSet = computePublishedSet(vaultPath, jsonConfig, rawSiteConfig);
   // Defense-in-depth against a stale build (see scanAllCandidatePages' own doc comment): not
   // used by anything that predicts what a fresh build produces, only by leak/l2 and
   // config/exclude-dirs-divergence, which must still be able to name a directory-excluded page
@@ -78,6 +80,9 @@ function buildCheckContext({
     campaign,
     vaultPath,
     jsonConfig,
+    // The pack as read and the settings layout ('new' or 'legacy'): beside jsonConfig, not in it.
+    rawSiteConfig,
+    settingsLayout,
     // outputPathExists: the directory is there at all, regardless of build state.
     // outputPath: only set when a real build actually exists in it. L2 (and
     // anything else that needs "is there a built site to inspect") must use
