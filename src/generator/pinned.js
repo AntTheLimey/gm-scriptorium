@@ -162,34 +162,31 @@ function normalizeExcludeDir(entry, vaultPath, say) {
 // lib/settings/layout.js:10-11 names the two settings files.
 const pinConfig = require('gm-apprentice-publish/lib/config');
 const settingsLayout = require('gm-apprentice-publish/lib/settings/layout');
+const pinSettings = require('gm-apprentice-publish/lib/settings');
 const { stops: stopFaults } = require('gm-apprentice-publish/lib/settings/faults');
 
 /**
- * The pin's own reading of a vault's settings (lib/config.js's loadPublishConfig), with the settings
- * file's text supplied by the caller instead of read from disk by the pin.
+ * Runs `fn` with fs.existsSync and fs.readFileSync answering for exactly two paths, the old settings
+ * file (`_meta/vault-config.md`) and the new one (`_meta/vault-config.yaml`), from the text the
+ * caller supplies (null: absent). Every other path goes to the real fs, and both functions are
+ * restored in a `finally`, so nothing outside the call ever sees the change (the pattern of
+ * src/generator/bootstrap.js's vault read shim). The call must be synchronous.
  *
- * The pin's reader opens `_meta/vault-config.md` itself, with fs (lib/settings/legacy.js:241-243,
+ * The pin's reader opens these files itself, with fs (lib/settings/legacy.js:241-243,
  * lib/settings/layout.js:45-48). `check` reads every vault file through src/vault/read.js, which
  * aborts on a failing disk and, for the admin panel, serves an edited copy in place of the file
- * (ADR 0041). So for the length of this one synchronous call, fs.existsSync and fs.readFileSync
- * answer for exactly two paths: the old settings file, from `oldFileText` (null: absent), and the
- * new one, `_meta/vault-config.yaml`, always absent, because Scriptorium refuses a moved vault before
- * it reads settings at all. Every other path goes to the real fs, and both functions are restored in
- * a `finally`, so nothing outside this call ever sees the change (the pattern of
- * src/generator/bootstrap.js's vault read shim).
- *
- * The pin prints nothing here: its warn function is a no-op and stops are kept quiet.
+ * (ADR 0041), so the text is handed in instead of read by the pin.
  *
  * @param {string} vaultPath
- * @param {object} siteConfig the site's vault.config.json, as the build is given it
- * @param {string|null} oldFileText the text of _meta/vault-config.md, or null when there is none
- * @returns {{ config: object, stops: object[] }} the pin's publishConfig and its stop-level faults
- * @throws whatever the pin throws for a settings file it cannot parse
+ * @param {{ md?: string|null, yaml?: string|null }} files the text of each settings file, or null/absent for none
+ * @param {() => T} fn
+ * @returns {T}
+ * @template T
  */
-function readPublishSettings(vaultPath, siteConfig, oldFileText) {
+function withServedSettings(vaultPath, files, fn) {
   const served = new Map([
-    [path.resolve(settingsLayout.at(vaultPath, settingsLayout.OLD_FILE)), typeof oldFileText === 'string' ? oldFileText : null],
-    [path.resolve(settingsLayout.at(vaultPath, settingsLayout.NEW_FILE)), null],
+    [path.resolve(settingsLayout.at(vaultPath, settingsLayout.OLD_FILE)), files && typeof files.md === 'string' ? files.md : null],
+    [path.resolve(settingsLayout.at(vaultPath, settingsLayout.NEW_FILE)), files && typeof files.yaml === 'string' ? files.yaml : null],
   ]);
   const servedFor = (p) => (typeof p === 'string' && served.has(path.resolve(p)) ? served.get(path.resolve(p)) : undefined);
   const realExists = fs.existsSync;
@@ -210,13 +207,124 @@ function readPublishSettings(vaultPath, siteConfig, oldFileText) {
     return encoding ? text : Buffer.from(text, 'utf8');
   };
   try {
-    const config = pinConfig.loadPublishConfig(vaultPath, siteConfig, () => {}, { quietStops: true });
-    return { config, stops: stopFaults(config.faults || []) };
+    return fn();
   } finally {
     fs.existsSync = realExists;
     fs.readFileSync = realRead;
   }
 }
+
+/**
+ * The pin's own reading of a vault's settings (lib/config.js's loadPublishConfig), with the settings
+ * files' text supplied by the caller instead of read from disk by the pin (see withServedSettings).
+ *
+ * The pin prints nothing here: its warn function is a no-op and stops are kept quiet.
+ *
+ * @param {string} vaultPath
+ * @param {object} siteConfig the site's vault.config.json, as the build is given it
+ * @param {{ md: string|null, yaml: string|null }} files the text of _meta/vault-config.md and of
+ *   _meta/vault-config.yaml, each null when there is none
+ * @returns {{ config: object, stops: object[] }} the pin's publishConfig and its stop-level faults
+ * @throws whatever the pin throws for a settings file it cannot parse
+ */
+function readPublishSettings(vaultPath, siteConfig, files) {
+  return withServedSettings(vaultPath, files, () => {
+    const config = pinConfig.loadPublishConfig(vaultPath, siteConfig, () => {}, { quietStops: true });
+    return { config, stops: stopFaults(config.faults || []) };
+  });
+}
+
+/**
+ * The pin's resolveConfig (lib/config.js): the site's config with each moved key overwritten, in its
+ * old JSON spelling, by what the vault's settings resolved. On the new layout a moved key the vault
+ * does not set is deleted. The raw object is not changed. Quiet, like readPublishSettings.
+ *
+ * @param {string} vaultPath
+ * @param {object} rawSiteConfig
+ * @param {{ md: string|null, yaml: string|null }} files
+ * @returns {{ config: object, publishConfig: object }}
+ */
+function resolveSiteConfig(vaultPath, rawSiteConfig, files) {
+  return withServedSettings(vaultPath, files, () => pinConfig.resolveConfig(rawSiteConfig, vaultPath, () => {}, { quietStops: true }));
+}
+
+/**
+ * The faults the pin's settings reader finds (lib/settings/index.js readSettings), each
+ * `{ level, kind, name, setting, source, message, value }`.
+ *
+ * @param {string} vaultPath
+ * @param {object} siteConfig
+ * @param {{ md: string|null, yaml: string|null }} files
+ * @returns {object[]}
+ */
+function settingFaults(vaultPath, siteConfig, files) {
+  return withServedSettings(vaultPath, files, () => pinSettings.readSettings({ vaultPath, siteConfig }).faults);
+}
+
+/**
+ * Which settings layout a vault is on: 'new' (_meta/vault-config.yaml), 'legacy'
+ * (_meta/vault-config.md) or 'none'. Reads the real disk; a caller that needs an edited copy
+ * served instead passes its text to the functions above.
+ *
+ * @param {string} vaultPath
+ * @returns {'new'|'legacy'|'none'}
+ */
+function settingsLayoutOf(vaultPath) {
+  return pinSettings.layoutOf(vaultPath);
+}
+
+/**
+ * A site config with every key the pin has moved into the vault's settings taken out, and the names
+ * of what was taken. The pin's own stripSiteKeys (lib/settings/move.js:177) is not exported, so this
+ * rebuilds its reading from the registry: the json spelling of each moved key (movedKeys), the five
+ * site-folder keys (siteFolderKeys) and every other name the registry's `was` entries give for the
+ * site file (the dotted ones, like backend.statusBar). Scriptorium keeps no list of its own. A
+ * parent left empty by a dotted removal is removed too. Like the pin's, a key the registry marks as
+ * no longer read (landingTagline) is taken out as well, and so is whatever else sits under the root
+ * of a dotted name the move carries (a stray fourOhFour.style goes with fourOhFour.message). The
+ * input is not changed.
+ *
+ * @param {object} rawSiteConfig
+ * @returns {{ config: object, removed: string[] }}
+ */
+function stripMovedSettings(rawSiteConfig) {
+  const names = new Set([
+    ...pinSettings.movedKeys().map((k) => k.json),
+    ...pinSettings.siteFolderKeys().map((k) => k.key),
+  ]);
+  const roots = new Set();
+  for (const e of pinSettings.REGISTRY) {
+    for (const w of e.was || []) {
+      if (w.in !== 'site') continue;
+      names.add(w.name);
+      if (!e.legacyOnly && (e.siteFallback || w.carryOnly || w.read === false) && w.name.includes('.')) roots.add(w.name.split('.')[0]);
+    }
+  }
+  const config = structuredClone(rawSiteConfig);
+  const removed = [];
+  for (const name of names) {
+    const segs = name.split('.');
+    let parent = config;
+    for (const seg of segs.slice(0, -1)) parent = parent && typeof parent === 'object' ? parent[seg] : undefined;
+    const last = segs[segs.length - 1];
+    if (!parent || typeof parent !== 'object' || !Object.prototype.hasOwnProperty.call(parent, last)) continue;
+    delete parent[last];
+    removed.push(name);
+    if (segs.length > 1 && Object.keys(parent).length === 0) delete config[segs[0]];
+  }
+  for (const root of roots) {
+    if (!Object.prototype.hasOwnProperty.call(config, root)) continue;
+    const rest = config[root];
+    const inside = rest && typeof rest === 'object' && !Array.isArray(rest) ? Object.keys(rest) : [];
+    for (const k of inside.length ? inside : ['']) removed.push(k ? `${root}.${k}` : root);
+    delete config[root];
+  }
+  return { config, removed };
+}
+
+// lib/settings/legacy.js:455 (module.exports): the stricter of two exclude_callouts values (true beats a
+// list, a list beats off, two lists are unioned), so a carry never makes a callout publish.
+const { stricterCallouts } = require('gm-apprentice-publish/lib/settings/legacy');
 
 // lib/settings/registry.js:685 (module.exports). At publish-v1.26.0 the pin dropped PUBLISH_DEFAULTS:
 // each setting's default now lives on its entry in the settings registry. Scriptorium still reads
@@ -440,6 +548,11 @@ module.exports = {
   PUBLISH_DEFAULTS,
   DEFAULT_WITHHELD_WORDS,
   readPublishSettings,
+  resolveSiteConfig,
+  settingFaults,
+  settingsLayoutOf,
+  stripMovedSettings,
+  stricterCallouts,
   vaultRelPath,
   scanConfigFor,
   normalizeExcludeDir,

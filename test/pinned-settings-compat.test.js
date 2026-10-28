@@ -88,3 +88,84 @@ test('normalizeExcludeDir drops an absolute folder outside the vault without thr
   assert.equal(pinned.normalizeExcludeDir('./GM\\Stuff', vault, false), 'GM/Stuff');
   assert.equal(pinned.normalizeExcludeDir(path.join(vault, 'Private'), vault, false), 'Private');
 });
+
+// ---- rung 3b: the settings reader and the carry, through the facade ----
+
+const fs = require('fs');
+const os = require('os');
+const { moveVaultCopy } = require('./helpers/moved-vault');
+
+const SAMPLE = path.join(__dirname, '..', 'examples', 'the-long-lease');
+const PACK = JSON.parse(fs.readFileSync(path.join(SAMPLE, '_meta', 'scriptorium', 'vault.config.json'), 'utf8'));
+
+function scratch() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pinned-compat-'));
+  return { dir, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
+}
+
+// `withPack` also folds the sample's pack into the yaml, as the carry does, so the title is in it.
+function movedSample(t, withPack = false) {
+  const s = scratch();
+  t.after(s.done);
+  const { vaultPath } = moveVaultCopy(SAMPLE, s.dir, withPack ? { siteConfig: PACK } : {});
+  const yaml = fs.readFileSync(path.join(vaultPath, '_meta', 'vault-config.yaml'), 'utf8');
+  return { s, vaultPath, yaml };
+}
+
+test('settingsLayoutOf says new for a moved copy and legacy for the sample', (t) => {
+  const { vaultPath } = movedSample(t);
+  assert.equal(pinned.settingsLayoutOf(vaultPath), 'new');
+  assert.equal(pinned.settingsLayoutOf(SAMPLE), 'legacy');
+});
+
+test('resolveSiteConfig takes the title from the vault yaml, not the pack', (t) => {
+  const { vaultPath, yaml } = movedSample(t, true);
+  const { config } = pinned.resolveSiteConfig(vaultPath, { ...PACK, siteTitle: 'Pack Title' }, { md: null, yaml });
+  assert.equal(config.siteTitle, 'The Long Lease');
+});
+
+test('settingFaults on a moved copy stops on a pack hiding list the vault does not hold', (t) => {
+  const { vaultPath, yaml } = movedSample(t);
+  const faults = pinned.settingFaults(vaultPath, { ...PACK, excludeSections: ['Pack Only Secret'] }, { md: null, yaml });
+  const hit = faults.find((f) => f.level === 'stop' && f.kind === 'old-name' && f.name === 'excludeSections');
+  assert.ok(hit, JSON.stringify(faults));
+});
+
+test('stripMovedSettings takes the pin\'s moved keys out and leaves the rest', () => {
+  const out = pinned.stripMovedSettings({ siteTitle: 'x', excludeDirs: [], vaultPath: '/v' });
+  assert.deepEqual(out.config, { vaultPath: '/v' });
+  assert.ok(out.removed.includes('siteTitle'));
+  assert.ok(out.removed.includes('excludeDirs'));
+});
+
+test('stripMovedSettings takes out the site-folder keys and the nested backend names, and does not change its input', () => {
+  const input = { siteUrl: 'u', host: 'h', backend: { statusBar: false, inbox: true }, fourOhFour: { message: 'm', style: 's' }, landingTagline: 't', other: 1 };
+  const out = pinned.stripMovedSettings(input);
+  assert.deepEqual(out.config, { other: 1 });
+  for (const k of ['siteUrl', 'host', 'backend.statusBar', 'backend.inbox', 'fourOhFour.message', 'fourOhFour.style', 'landingTagline']) {
+    assert.ok(out.removed.includes(k), `${k} in ${out.removed}`);
+  }
+  assert.deepEqual(input, { siteUrl: 'u', host: 'h', backend: { statusBar: false, inbox: true }, fourOhFour: { message: 'm', style: 's' }, landingTagline: 't', other: 1 });
+});
+
+test('stricterCallouts is exported and picks the stricter value', () => {
+  assert.equal(pinned.stricterCallouts(true, ['note']), true);
+  assert.equal(pinned.stricterCallouts(['note'], true), true);
+  assert.deepEqual(pinned.stricterCallouts(['note'], ['warning']), ['note', 'warning']);
+  assert.deepEqual(pinned.stricterCallouts(false, ['warning']), ['warning']);
+  assert.equal(pinned.stricterCallouts(false, false), false);
+});
+
+test('readPublishSettings serves the yaml text it is given and treats null as absent', (t) => {
+  const { vaultPath, yaml } = movedSample(t, true);
+  const served = pinned.readPublishSettings(vaultPath, {}, { md: null, yaml });
+  assert.equal(served.config.site_title, 'The Long Lease');
+  const absent = pinned.readPublishSettings(SAMPLE, {}, { md: null, yaml: null });
+  assert.equal(absent.config.layout, 'none');
+});
+
+test('stripMovedSettings empties the sample pack, as the pin plan does', () => {
+  // The pin's planMove takes every key of the sample pack out (checked by hand against
+  // its "Will remove the settings from ..." line): all of them, landingTagline included.
+  assert.deepEqual(pinned.stripMovedSettings(PACK).config, {});
+});

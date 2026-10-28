@@ -133,10 +133,10 @@ function loadPublishConfig(vaultPath, jsonConfig = {}) {
   const site = siteConfigForSettings(jsonConfig);
   let settings;
   try {
-    settings = pinned.readPublishSettings(vaultPath, site, text);
+    settings = pinned.readPublishSettings(vaultPath, site, { md: text, yaml: null });
   } catch (err) {
     if (text === null) throw err;
-    settings = pinned.readPublishSettings(vaultPath, site, null);
+    settings = pinned.readPublishSettings(vaultPath, site, { md: null, yaml: null });
   }
   const pc = settings.config;
 
