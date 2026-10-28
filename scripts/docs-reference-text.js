@@ -702,7 +702,7 @@ module.exports = deepFreeze({
       whatToDo: 'Run `gm-scriptorium check` and fix what it lists. A refused `build` writes nothing.',
     },
     3: {
-      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered. A `build --force-check` or `build --no-check` that stops because a hiding setting in the vault cannot be read also exits 3; fix the setting the message names.',
+      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered. *Since 0.5.0.* A `build --force-check` or `build --no-check` that stops because a hiding setting in the vault cannot be read also exits 3; fix the setting the message names.',
     },
     4: {
       whatToDo: 'Check that this computer can reach GitHub, then run `gm-scriptorium update --check` again.',
