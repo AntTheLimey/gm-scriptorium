@@ -1,8 +1,8 @@
 'use strict';
 
 /*
- * At publish-v1.26.0 the pin no longer exports four things Scriptorium used: PUBLISH_DEFAULTS,
- * resolveGenrePreset, and normalizeExcludeDir and stricterCallouts from lib/config.js. The facade
+ * At publish-v1.26.0 the pin no longer exports three things Scriptorium used: PUBLISH_DEFAULTS,
+ * resolveGenrePreset, and normalizeExcludeDir from lib/config.js. The facade
  * (src/generator/pinned.js) now rebuilds or re-requires them from the pin's settings registry. The
  * expected values below are typed out by hand from what publish-v1.21.0 exported (its
  * lib/config.js PUBLISH_DEFAULTS and lib/theme.js resolveGenrePreset, run against the 1.21.0
@@ -87,11 +87,4 @@ test('normalizeExcludeDir drops an absolute folder outside the vault without thr
   assert.equal(pinned.normalizeExcludeDir('Secrets/', vault, false), 'Secrets');
   assert.equal(pinned.normalizeExcludeDir('./GM\\Stuff', vault, false), 'GM/Stuff');
   assert.equal(pinned.normalizeExcludeDir(path.join(vault, 'Private'), vault, false), 'Private');
-});
-
-test('stricterCallouts: true beats a list, a list beats off, two lists union with the vault\'s first', () => {
-  assert.equal(pinned.stricterCallouts(false, true), true);
-  assert.deepEqual(pinned.stricterCallouts(false, ['secret']), ['secret']);
-  assert.deepEqual(pinned.stricterCallouts(['gm', 'Secret'], ['secret', 'warning']), ['gm', 'Secret', 'warning']);
-  assert.equal(pinned.stricterCallouts(true, ['x']), true);
 });

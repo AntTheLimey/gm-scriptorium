@@ -72,7 +72,7 @@ unmodified (the stub-page guard on `keepOnlySections` is retired at publish-v1.1
 `findHeadings`, `renderInline`, `resolveWikiLinks` (all from `lib/processor.js`; the last three are
 what `leak/l5-gm-heading-survives` reads headings with, `docs/decisions/0045-leak-checks-read-rendered-headings-and-data-islands.md`), `decidePage`, `publishesPage`, `ALWAYS_EXCLUDE_DIRS` (`lib/publish-decision.js`),
 `parseManifest` (`lib/manifest.js`), `vaultRelPath`, `scanConfigFor`
-(`lib/config.js`), `normalizeExcludeDir` and `stricterCallouts` (`lib/settings/`, from publish-v1.26.0),
+(`lib/config.js`), `normalizeExcludeDir` and `readSwitch` (`lib/settings/`, from publish-v1.26.0),
 `slugify`, `mapFolder`, `dirIsExcluded` (`lib/scanner.js`), `pairHubs`
 (`lib/session-hub.js`), `isWrapUp`, `WRAP_UP_TYPES` (also `lib/session-hub.js`),
 `labelsForLinks` (`lib/wikilink.js`, from publish-v1.17.0;
@@ -327,8 +327,8 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   bypass Scriptorium's read-only, abort-on-EIO chokepoint and write straight to stderr, which
   `check` cannot allow. Only the *pure* functions (`decidePage`, `publishesPage`, `slugify`,
   `mapFolder`, `dirIsExcluded`, `vaultRelPath`, `scanConfigFor`, `canonicalNfc`, `parseManifest`,
-  `normalizeExcludeDir`, `stricterCallouts`, `PUBLISH_DEFAULTS`) are required through the facade and
-  called directly. The last two were added after the port missed them: a folder written as
+  `normalizeExcludeDir`, `readSwitch`, `PUBLISH_DEFAULTS`) are required through the facade and
+  called directly. `normalizeExcludeDir` and `PUBLISH_DEFAULTS` were added after the port missed them: a folder written as
   `NPCs/` was left out of the build but still counted by `check`. Everything else in this
   file is logic someone re-typed
   from `lib/scanner.js` by hand and has to be re-checked, not re-verified automatically, on every pin

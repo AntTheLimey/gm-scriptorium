@@ -16,7 +16,7 @@ const { toRelativePosix } = require('../util/paths');
  * manifest-cli.js). All of it deliberately: node_modules, every excludeDirs entry,
  * _meta/_Templates/_inbox/_publish, and dotfiles are all included, because
  * scanAllNotes (run by every build via pairHubs, lib/build.js:754-755) ignores excludeDirs and reads any
- * `.md` (any case) directly under _meta, or carrying an aliases:/gm_aliases:/withheld:/title:/publish:
+ * `.md` (any case) whose first path segment is _meta (any depth under it), or carrying an aliases:/gm_aliases:/withheld:/title:/publish:
  * line, a meta or template type: line or a session type: line (from publish-v1.26.0), and
  * scanVaultReport itself descends into node_modules and reads dotfiles and file symlinks.
  *

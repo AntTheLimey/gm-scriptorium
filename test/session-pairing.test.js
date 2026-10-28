@@ -89,7 +89,7 @@ test('change detector: lib/scanner.js still carries the exact SESSION_TYPE_LINE 
   assert.ok(
     src.includes('const SESSION_TYPE_LINE = /^type:\\s*["\']?(session|session_wrap|session-wrap-up|session-wrapup)["\']?\\s*$/m;'),
   );
-  // publish-v1.26.0 widened the gate: every note directly under _meta, a `title:` or `publish:` line,
+  // publish-v1.26.0 widened the gate: every note whose first path segment is _meta (any depth), a `title:` or `publish:` line,
   // and a meta or template type line (lib/scanner.js:412, :434-435).
   assert.ok(src.includes("const HOUSEKEEPING_TYPE_LINE = /^type:\\s*[\"']?(meta|template)[\"']?\\s*$/m;"));
   assert.ok(src.includes("const inMeta = path.relative(vaultPath, full).split(path.sep)[0] === '_meta';"));
@@ -135,8 +135,9 @@ test('port parity: scanAllNotesForPairing matches the pin\'s own scanAllNotes ac
     writeFile(path.join(scratch, 'JsonFence.md'), '---json\n{"aliases": ["Foo"]}\n---\n');
     // From publish-v1.21.0 a `withheld:` line also gates the frontmatter read.
     writeFile(path.join(scratch, 'Withheld.md'), '---\ntype: npc\nwithheld: yes\n---\n');
-    // From publish-v1.26.0: a note directly under _meta, a `title:` or `publish:` line, and a meta or
-    // template type line gate it too. A note deeper under _meta does not, by its folder alone.
+    // From publish-v1.26.0: a note anywhere under _meta (the first path segment is tested, so
+    // a deeper one counts too), a `title:` or `publish:` line, and a meta or template type line gate it
+    // too.
     fs.mkdirSync(path.join(scratch, '_meta', 'deeper'), { recursive: true });
     writeFile(path.join(scratch, '_meta', 'index.md'), '---\ntype: index\n---\n');
     writeFile(path.join(scratch, '_meta', 'deeper', 'Note.md'), '---\ntype: npc\n---\n');

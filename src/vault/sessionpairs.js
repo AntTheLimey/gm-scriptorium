@@ -16,7 +16,8 @@ const { toRelativePosix } = require('../util/paths');
  * on `adaptPage` / `scanAllNotesForPairing` independently of `computeSessionPairing`.
  */
 
-// lib/scanner.js:434-435: the note's frontmatter is read when it sits directly under `_meta`, or its
+// lib/scanner.js:434-435: the note's frontmatter is read when the first segment of its path is `_meta` (a note at any depth
+// under that folder), or its
 // raw text has an aliases, withheld, title or publish line, a meta or template type line, or a
 // session type line. ALIASES_LINE and HOUSEKEEPING_TYPE_LINE mirror the pin's literals verbatim
 // (`withheld:` joined at publish-v1.21.0; `title:`, `publish:`, the `_meta` folder and the

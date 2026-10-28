@@ -1320,17 +1320,23 @@ rung.
 
 - **The settings reader** (1.22.0 to 1.26.0): `lib/config.js` keeps `loadPublishConfig`, but the
   settings are now read against one registry (`lib/settings/`). `PUBLISH_DEFAULTS`,
-  `resolveGenrePreset`, and `normalizeExcludeDir` and `stricterCallouts` (moved to `lib/settings/`) are
-  no longer exported from where the facade took them. The facade rebuilds `PUBLISH_DEFAULTS` from the
+  `resolveGenrePreset`, and `normalizeExcludeDir` (moved to `lib/settings/`) are no longer exported from
+  where the facade took them. (`stricterCallouts` went the same way; the facade does not carry it,
+  because the pin's own loader does the merge.) The facade rebuilds `PUBLISH_DEFAULTS` from the
   registry by each key's old name: it equals 1.21.0's except that `landing.max_events` (4) is new and
   `four_oh_four.style` is retired. The reference pages show neither, since the panel edits neither.
 - **Hiding rules for an old-layout vault.** A hiding list in the site's `vault.config.json`, with none
-  in the vault file, now adds to the built-in list (#371). `no`, `off`, `yes` and `on` are switch words
-  for `exclude_callouts` and `exclude_drafts`. A hiding setting the reader cannot use, or a name that
+  in the vault file, now adds to the built-in list (#371). That includes `excludeSections` and
+  `excludeFields`: a site that left a default out on purpose (for example "Player Notes") now hides it
+  again. This is the safe direction, but a reader can see the change. `no`, `off`, `yes` and `on` are switch words
+  for `exclude_callouts` and `exclude_drafts`. Up to 1.21.0 any text there counted as on, so `no`, `off`
+  and `"false"` hid drafts and callouts; they now publish them, and `check` warns with
+  `config/switch-word-now-off`. A hiding setting the reader cannot use, or a name that
   looks like one, stops the build (`assertNoStops`); `publish.mode: gm` is one.
 - **Withheld words.** `gmAliasRewriter` and `pairHubs` now need the site's `withheld_words`; on an old
   layout they are the built-in someone, somewhere and something, the words 1.21.0 hard-coded.
-- **The note walk** (`scanAllNotes`) reads the frontmatter of every note directly under `_meta` and of
+- **The note walk** (`scanAllNotes`) reads the frontmatter of every note under `_meta` (the first segment of its path is tested, so a note
+  at any depth counts) and of
   any note with a `title:` or `publish:` line or a meta or template type. `src/vault/sessionpairs.js`
   follows it. Notes under `_meta` and `_Templates` no longer count as hidden names, but that set feeds
   only links written in settings, which nothing in Scriptorium mirrors.

@@ -143,7 +143,6 @@ const { vaultRelPath, scanConfigFor } = require('gm-apprentice-publish/lib/confi
 // which the pin would now call and throw on, so the wrapper below turns anything that is not a
 // function into a no-op.
 const settingsFolders = require('gm-apprentice-publish/lib/settings/folders');
-const { stricterCallouts } = require('gm-apprentice-publish/lib/settings/legacy');
 const { readSwitch } = require('gm-apprentice-publish/lib/settings/types');
 
 /**
@@ -444,7 +443,6 @@ module.exports = {
   vaultRelPath,
   scanConfigFor,
   normalizeExcludeDir,
-  stricterCallouts,
   readSwitch,
   slugify,
   mapFolder,
