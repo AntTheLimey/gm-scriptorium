@@ -8,6 +8,7 @@ const relationship = require('./relationship');
 const unmapped = require('./unmapped');
 const sessionmodel = require('./sessionmodel');
 const configdiv = require('./configdiv');
+const carry = require('./carry');
 const themescheme = require('./themescheme');
 const staleness = require('./staleness');
 const l1 = require('./leak/l1');
@@ -43,6 +44,9 @@ const RUNNERS = {
   'config/switch-word-now-off': configdiv.runSwitchWordNowOff,
   'config/site-vault-path-mismatch': configdiv.runSiteVaultPathMismatch,
   'config/pack-shadowed': configdiv.runPackShadowed,
+  'config/pack-hiding-not-carried': carry.runPackHidingNotCarried,
+  'config/pack-setting-not-carried': carry.runPackSettingNotCarried,
+  'config/pack-setting-differs': carry.runPackSettingDiffers,
   'config/theme-scheme-mismatch': themescheme.runThemeSchemeMismatch,
   'leak/l1-no-manifest': l1.runNoManifest,
   'leak/l2-excluded-dir-in-output': l2.runExcludedDirInOutput,

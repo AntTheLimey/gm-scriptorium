@@ -1087,6 +1087,18 @@ module.exports = deepFreeze({
       what: 'A setting the generator cannot read stops the build. It may be a setting that hides something from players, or one that says where the site is built or what it keeps. A name that looks like one of these but is misspelt or in the wrong place counts too. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, a `mode:` other than `player` or `full`, or a folder to keep written with a slash. The generator will not build until it is fixed, because its safe guess might not be what you meant. The message is the generator\'s own.',
       action: 'Fix the setting the message names. `on`, `off`, `yes`, `no`, `true` and `false` all work for a switch, and a list needs one entry per line.',
     },
+    'config/pack-hiding-not-carried': {
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still hides something the vault\'s own list does not: an `excludeSections`, `excludeFields`, `excludeDirs` or `excludeCallouts` entry. The generator no longer reads those keys from the pack, so the section, field, folder or callout the entry hid would be published. The message names the missing entries. It is an ERROR.',
+      action: 'Run `gm-scriptorium carry <campaign>` to move the entries into the vault\'s settings. Or add them to the matching `player_site.hide` list in `_meta/vault-config.yaml` yourself.',
+    },
+    'config/pack-setting-not-carried': {
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still sets something the vault\'s settings do not, such as `siteTitle` or `folderMap`. The generator ignores the pack\'s value, so the site uses the built-in one. A key the generator no longer reads at all, such as `landingTagline`, is not reported.',
+      action: 'Run `gm-scriptorium carry <campaign>` to move the value into the vault\'s settings, or set it in `_meta/vault-config.yaml` yourself.',
+    },
+    'config/pack-setting-differs': {
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, and both it and the campaign pack\'s `vault.config.json` set the same thing, to different values. The vault\'s value is the one the site uses. The message shows both.',
+      action: 'Run `gm-scriptorium carry <campaign>` to settle it, or edit whichever file is wrong.',
+    },
     'config/switch-word-now-off': {
       what: '`publish.exclude_drafts` or `publish.exclude_callouts` in `_meta/vault-config.md` is written as `no`, `off` or `"false"`. Up to GM-Scriptorium 0.5.0 any text there counted as on, so these hid draft pages or callouts. The generator now reads them as off, so those pages and callouts are published.',
       action: 'Set the setting to `true` to hide them, or to `false` to keep publishing them and silence this warning. *Since the generator moved to publish-v1.26.0.*',

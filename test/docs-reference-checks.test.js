@@ -55,6 +55,9 @@ const IDS = [
   'config/switch-word-now-off',
   'config/site-vault-path-mismatch',
   'config/pack-shadowed',
+  'config/pack-hiding-not-carried',
+  'config/pack-setting-not-carried',
+  'config/pack-setting-differs',
   'config/theme-scheme-mismatch',
   'leak/l1-no-manifest',
   'leak/l2-excluded-dir-in-output',
@@ -76,8 +79,8 @@ const IDS = [
 
 // ---- literal facts the page shows ----
 
-test('the forty finding ids, as a literal list, registry first and then the build', () => {
-  assert.equal(IDS.length, 40);
+test('the forty-three finding ids, as a literal list, registry first and then the build', () => {
+  assert.equal(IDS.length, 43);
   assert.deepEqual(facts.map((f) => f.key), IDS);
 });
 

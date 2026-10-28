@@ -248,6 +248,33 @@ const CHECKS = Object.freeze([
       'The legacy site_config key is set and a campaign pack also exists (the pack key\'s directory, or <vault>/_meta/scriptorium/ by convention, holding vault.config.json). site_config wins and the pack is ignored; reported only, never fatal (docs/decisions/0018-campaign-pack.md). Remove site_config to build from the pack.',
   },
   {
+    id: 'config/pack-hiding-not-carried',
+    category: 'config',
+    defaultSeverity: 'error',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'On a vault whose settings moved to _meta/vault-config.yaml, the pack\'s vault.config.json still hides something (an excludeSections, excludeFields, excludeDirs or excludeCallouts entry) that the vault\'s own hide setting lacks. The build no longer reads the pack for these, so what the entry hid would be published. One finding per pack key, naming the missing entries. Run "gm-scriptorium carry" to move them into the vault\'s settings.',
+  },
+  {
+    id: 'config/pack-setting-not-carried',
+    category: 'config',
+    defaultSeverity: 'warn',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'On a vault whose settings moved to _meta/vault-config.yaml, the pack\'s vault.config.json sets something (such as siteTitle or folderMap) that the vault\'s settings do not set, so the pack\'s value is not used. Run "gm-scriptorium carry" to move it into the vault\'s settings. A key the generator no longer reads at all (landingTagline) is not reported.',
+  },
+  {
+    id: 'config/pack-setting-differs',
+    category: 'config',
+    defaultSeverity: 'warn',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'On a vault whose settings moved to _meta/vault-config.yaml, the pack\'s vault.config.json and the vault\'s settings both set the same thing, to different values. The vault\'s value is the one used. Run "gm-scriptorium carry" to settle it.',
+  },
+  {
     id: 'config/theme-scheme-mismatch',
     category: 'config',
     defaultSeverity: 'info',

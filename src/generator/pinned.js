@@ -278,6 +278,19 @@ function readSettingValues(vaultPath, siteConfig, files) {
 }
 
 /**
+ * The pin's registry entry for a setting, by its dotted name (`player_site.theme.tagline`): the
+ * fields the pin keeps for it, such as `was` (its old names, each with `in` and, when the pin no
+ * longer reads it, `read: false`). Undefined for a name the registry does not list. A rule that
+ * depends on one of these fields reads it here, never from a hard-coded key name.
+ *
+ * @param {string} name
+ * @returns {object|undefined}
+ */
+function settingEntry(name) {
+  return pinSettings.REGISTRY.find((e) => e.name === name);
+}
+
+/**
  * Which settings layout a vault is on: 'new' (_meta/vault-config.yaml), 'legacy'
  * (_meta/vault-config.md) or 'none'. Reads the real disk; a caller that needs an edited copy
  * served instead passes its text to the functions above.
@@ -566,6 +579,7 @@ module.exports = {
   readPublishSettings,
   resolveSiteConfig,
   settingFaults,
+  settingEntry,
   readSettingValues,
   settingsLayoutOf,
   stripMovedSettings,

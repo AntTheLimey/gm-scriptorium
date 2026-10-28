@@ -66,6 +66,7 @@ function headingSurvives(ctx, sectionName) {
  * this reports nothing.
  */
 function runExcludeSectionsDivergence(ctx) {
+  if (ctx.settingsLayout === 'new') return []; // the pack is no longer a second source; see runPackHidingNotCarried
   const { vault, json } = ctx.publishSet.configSources;
   if (!vault.exclude_sections && !json.excludeSections) return [];
 
@@ -107,6 +108,7 @@ function runExcludeSectionsDivergence(ctx) {
  * JSON-only entries are INFO (they take effect either way).
  */
 function runExcludeDirsDivergence(ctx) {
+  if (ctx.settingsLayout === 'new') return []; // the pack is no longer a second source; see runPackHidingNotCarried
   const jsonList = ctx.jsonConfig.excludeDirs || [];
   const vaultList = ctx.publishSet.configSources.vault.exclude_dirs || [];
   // Two entries name the same folder when the pin spells them the same (normalizeExcludeDir: no
@@ -175,6 +177,7 @@ function toCamelCase(snake) {
  * added to them from publish-v1.26.0 (:117-120); before, a list from either file replaced them.
  */
 function runExcludeFieldsDivergence(ctx) {
+  if (ctx.settingsLayout === 'new') return []; // the pack is no longer a second source; see runPackHidingNotCarried
   const effective = new Set(ctx.publishSet.publishConfig.exclude_fields || []);
   const findings = [];
 
@@ -220,7 +223,10 @@ function siteVaultPathMismatchMessage(m) {
  * of the site's vault.config.json, which the pin names by that key.
  */
 function runSettingsFault(ctx) {
-  const stops = ctx.publishSet.stops || [];
+  // On the moved layout a hide list the pack holds is reported once, by config/pack-hiding-not-carried
+  // (src/checks/carry.js): drop exactly the faults that check owns, the old-name stops from the site file.
+  const owned = (f) => ctx.settingsLayout === 'new' && f.kind === 'old-name' && f.source === 'site';
+  const stops = (ctx.publishSet.stops || []).filter((f) => !owned(f));
   const site = ctx.jsonConfig || {};
   const siteFile = ctx.rawSiteConfig || site;
   return stops.map((fault) => {
