@@ -1384,10 +1384,24 @@ patch would be process-wide and long-lived; this one covers two paths for one sy
   caller passes `options.runSteps` (`lib/build.js:258`); Scriptorium never does. A search of `src/`,
   `bin/` and `scripts/` finds no use of `runSteps`, and the only callers in the pin are its own
   deploy and backend-setup commands, which Scriptorium does not reach. Adding
-  `lib/settings/steps.js` to the module-graph test's expected set, which now names three files, is a
+  `lib/settings/steps.js` to the module-graph test's expected set, which then named three files, is a
   maintainer decision, flagged in the pull request that made it. The
   file is in the graph but cannot run from here; if Scriptorium ever passes `runSteps`, this
   decision must be revisited first.
+
+  The settings move (`lib/settings/move.js`), reached since the carry command (rung 3b), is the
+  fourth. It takes `spawnSync` out of the child-process module when it loads, for a check that asks a
+  site folder which publish tool it uses by running the pin's own command with `process.execPath`. In
+  the packaged executable `process.execPath` is GM-Scriptorium itself, so that command must never run.
+  The facade (`planSettingsCarry` and `applySettingsCarry` in `src/generator/pinned.js`) always hands
+  the move its own answer to that question, so the command is never started. The answer is "no
+  publish tool installed or pinned", which is what the real command says for the scratch folder a
+  carry works in, and the move reads it as "nothing holds the move back". The maintainer approved
+  adding `lib/settings/move.js` to the module-graph test's expected set, which now names four files.
+  `test/settings-carry-no-spawn.test.js` replaces every way of starting a program with a stub that
+  throws, then plans and applies a real carry, and fails if the facade stops handing over the
+  answer. Upstream issue AntTheLimey/gm-apprentice#535 asks for the file to load the module lazily;
+  once the pin has that, the exception and the injected answer can go.
 - **Rules-content scan.** `PIN_SCAN_BASELINE` re-derived: 56 hits before, 69 after, every new one read
   by hand: system names in comments, setting descriptions and the new settings schema, and the
   redacted CoC file's own lines.

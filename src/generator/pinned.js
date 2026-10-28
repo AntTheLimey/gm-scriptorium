@@ -302,6 +302,45 @@ function settingsLayoutOf(vaultPath) {
   return pinSettings.layoutOf(vaultPath);
 }
 
+// lib/settings/move.js:1306 (module.exports). The pin's own settings move, used here only for the carry:
+// folding a pack's leftover site settings into a vault already on _meta/vault-config.yaml.
+//
+// move.js takes spawnSync out of the child-process module when it loads, for `pinCheck`
+// (lib/settings/move.js:383), which asks "which publish tool does this site folder use?" by running
+// process.execPath on the pin's bin/gm-publish.js. In the packaged executable process.execPath is
+// GM-Scriptorium itself, so that must never run. Every call below therefore passes its own
+// `pinCheck`, which says "nothing to report": the same answer the real command gives a folder with no
+// publish tool installed or pinned ({ spec: null, installedBefore: null }, which holdFrom and
+// stepsHold, lib/settings/move.js:316 and 411, read as "no hold"). A carry's site folder is a scratch
+// folder with only a vault.config.json in it, so that is always the true answer.
+// test/settings-carry-no-spawn.test.js proves no program is started.
+const settingsMove = require('gm-apprentice-publish/lib/settings/move');
+const CARRY_DEPS = Object.freeze({ pinCheck: () => null });
+
+/**
+ * Plans the carry of a site file's settings into the vault's _meta/vault-config.yaml: the pin's
+ * planMove with `foldSiteFile`. The site file must name this vault in its `vaultPath`. Writes
+ * nothing. The returned plan is the pin's: { ok, lines, blockers, files: { write, remove }, carried,
+ * dropped } (blockers when not ok).
+ *
+ * @param {{ vaultPath: string, siteConfigPath: string }} args
+ * @returns {object}
+ */
+function planSettingsCarry({ vaultPath, siteConfigPath }) {
+  return settingsMove.planMove({ vaultPath, siteConfigPath, foldSiteFile: true }, CARRY_DEPS);
+}
+
+/**
+ * Applies a plan from planSettingsCarry: writes the vault's settings file and the site file the plan
+ * names. Throws, having changed nothing, when either file changed since the plan was made.
+ *
+ * @param {object} plan
+ * @returns {{ moved: boolean, lines: string[] }}
+ */
+function applySettingsCarry(plan) {
+  return settingsMove.applyMove(plan, CARRY_DEPS);
+}
+
 /**
  * A site config with every key the pin has moved into the vault's settings taken out, and the names
  * of what was taken. The pin's own stripSiteKeys (lib/settings/move.js:177) is not exported, so this
@@ -586,6 +625,8 @@ module.exports = {
   readSettingValues,
   settingsLayoutOf,
   stripMovedSettings,
+  planSettingsCarry,
+  applySettingsCarry,
   stricterCallouts,
   headingKey,
   vaultRelPath,

@@ -60,11 +60,22 @@ function stampFor(now) {
 }
 
 /**
- * @param {{ machineDir: string, campaign: string|null, vaultPath: string, bytes: Buffer, now?: () => number }} opts
- * @returns {{ path: string, dir: string }}
- * @throws {BackupError} vault-config.md is left unchanged
+ * The files writeBackup will keep a copy of. The panel's restore list (BACKUP_NAME_RE) still lists
+ * only vault-config.md; the carry keeps the yaml and the pack's vault.config.json beside them.
  */
-function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now }) {
+const BACKUP_FILES = Object.freeze(['vault-config.md', 'vault-config.yaml', 'vault.config.json']);
+
+/**
+ * @param {{ machineDir: string, campaign: string|null, vaultPath: string, bytes: Buffer, now?: () => number, file?: string }} opts
+ *   `file` is the name of the file being backed up; the backup is named `<stem>-<stamp>-<hex6>.<ext>.bak`
+ * @returns {{ path: string, dir: string }}
+ * @throws {BackupError} the file is left unchanged
+ */
+function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now, file = 'vault-config.md' }) {
+  if (!BACKUP_FILES.includes(file)) {
+    throw new BackupError(`cannot back up "${file}": only ${BACKUP_FILES.join(', ')} are kept`, { campaign });
+  }
+  const { name: stem, ext } = path.parse(file);
   const backupsDir = path.join(machineDir, BACKUPS_DIRNAME);
   const segment = campaignSegment(campaign);
   const segmentDir = path.join(backupsDir, segment);
@@ -73,7 +84,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
     mkdirTolerant(backupsDir);
     mkdirTolerant(segmentDir);
   } catch (err) {
-    throw new BackupError(`could not back up vault-config.md to ${segmentDir}: ${err.code || err.message}. vault-config.md was left unchanged.`, {
+    throw new BackupError(`could not back up ${file} to ${segmentDir}: ${err.code || err.message}. ${file} was left unchanged.`, {
       path: segmentDir,
       campaign,
       cause: err,
@@ -83,7 +94,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
   const realBackupsDir = fs.realpathSync(backupsDir);
   const realSegmentDir = fs.realpathSync(segmentDir);
   if (fold(realSegmentDir) !== fold(path.join(realBackupsDir, segment))) {
-    throw new BackupError(`could not back up vault-config.md to ${segmentDir}: it resolves outside the backups folder. vault-config.md was left unchanged.`, {
+    throw new BackupError(`could not back up ${file} to ${segmentDir}: it resolves outside the backups folder. ${file} was left unchanged.`, {
       path: segmentDir,
       campaign,
     });
@@ -91,7 +102,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
 
   const realVault = fs.realpathSync(vaultPath);
   if (packwrite.isInsideOrEqual(realVault, realSegmentDir)) {
-    throw new BackupError(`could not back up vault-config.md to ${segmentDir}: it is inside the vault. vault-config.md was left unchanged.`, {
+    throw new BackupError(`could not back up ${file} to ${segmentDir}: it is inside the vault. ${file} was left unchanged.`, {
       path: segmentDir,
       campaign,
     });
@@ -99,7 +110,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
 
   const stamp = stampFor(now);
   const hex6 = crypto.randomBytes(3).toString('hex');
-  const name = `vault-config-${stamp}-${hex6}.md.bak`;
+  const name = `${stem}-${stamp}-${hex6}${ext}.bak`;
   const finalPath = path.join(segmentDir, name);
   const tmp = path.join(segmentDir, `.${name}.scriptorium-tmp`);
 
@@ -120,7 +131,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
       }
     }
     removeTempBestEffort(tmp);
-    throw new BackupError(`could not back up vault-config.md to ${segmentDir}: ${err.code || err.message}. vault-config.md was left unchanged.`, {
+    throw new BackupError(`could not back up ${file} to ${segmentDir}: ${err.code || err.message}. ${file} was left unchanged.`, {
       path: segmentDir,
       campaign,
       cause: err,
@@ -343,6 +354,7 @@ function readBackup({ machineDir, campaign, vaultPath, id }) {
 }
 
 module.exports = {
+  BACKUP_FILES,
   BACKUP_KEEP,
   BACKUP_MAX_BYTES,
   BACKUP_NAME_RE,

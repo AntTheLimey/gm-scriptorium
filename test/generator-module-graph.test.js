@@ -221,14 +221,22 @@ test('no reached generator lib/ file contains fetch(', () => {
   assert.deepEqual(offenders, [], `fetch( found in: ${offenders.join(', ')}`);
 });
 
-test('the generator files requiring child_process are exactly lib/image-optimize.js, lib/run-command.js and lib/settings/steps.js', () => {
+test('the generator files requiring child_process are exactly lib/image-optimize.js, lib/run-command.js, lib/settings/move.js and lib/settings/steps.js', () => {
   // lib/settings/steps.js (added at publish-v1.26.0) runs a vault's own build steps. It runs only
   // when a caller passes `options.runSteps === true` to the generator's build (lib/build.js:258).
   // Scriptorium calls build({ configPath }) and never sets runSteps (grep of src/, bin/ and
   // scripts/ finds no use), so the file is reachable in the module graph but never executed.
   // Adding it is a maintainer decision, flagged in the pull request that made it; see
   // docs/decisions/0005-generator-pin.md (1.26.0 addendum).
-  const expected = ['lib/image-optimize.js', 'lib/run-command.js', 'lib/settings/steps.js'].sort();
+  //
+  // lib/settings/move.js (the settings move, reached since the carry, rung 3b) takes spawnSync out of
+  // the module at load, for its `pinCheck`, which would run process.execPath on the pin's own
+  // bin/gm-publish.js. In the packaged executable process.execPath is GM-Scriptorium itself, so that
+  // must never run. The facade (src/generator/pinned.js, planSettingsCarry and applySettingsCarry)
+  // always injects `deps.pinCheck`, so the spawn never runs; test/settings-carry-no-spawn.test.js
+  // proves it. Upstream issue AntTheLimey/gm-apprentice#535 asks for a lazy require, so this
+  // exception can go once the pin has it. Owner-approved; see the same addendum.
+  const expected = ['lib/image-optimize.js', 'lib/run-command.js', 'lib/settings/move.js', 'lib/settings/steps.js'].sort();
   const actual = [];
   for (const f of graph.files) {
     if (!f.startsWith(GENERATOR_LIB_DIR + path.sep)) continue;

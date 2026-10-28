@@ -108,14 +108,40 @@ function carryFindings(ctx) {
   return cache.get(ctx);
 }
 
+/**
+ * The pin's faults for a pack, and the ones the vault's settings do not already hold: the pack's
+ * `old-name` faults (kind 'old-name', source 'site') for settings the pin still reads, minus those
+ * whose value the vault holds (isHeldByVault). Each entry carries the pin's fault and the vault's
+ * value for the setting. The carry (src/vault/settingscarry.js) asks the same question, before and
+ * after it runs, so what `check` reports and what the carry moves cannot drift apart.
+ *
+ * @param {string} vaultPath
+ * @param {object} packConfig the pack as read (vault.config.json content)
+ * @param {{ md: string|null, yaml: string|null }} files the vault's settings files
+ * @returns {{ faults: object[], unheld: { fault: object, vaultValue: *, origin: string }[] }}
+ * @throws a settings file the pin cannot parse
+ */
+function unheldPackSettings(vaultPath, packConfig, files) {
+  const faults = pinned.settingFaults(vaultPath, packConfig, files);
+  const settings = pinned.readSettingValues(vaultPath, packConfig, files);
+  const unheld = [];
+  for (const fault of faults) {
+    if (fault.kind !== 'old-name' || fault.source !== 'site' || !fault.setting) continue;
+    if (pinIgnores(fault)) continue;
+    const vaultValue = valueAt(settings.values, fault.setting);
+    if (isHeldByVault(fault.name, fault.value, vaultValue, vaultPath)) continue;
+    unheld.push({ fault, vaultValue, origin: settings.origins[fault.setting] });
+  }
+  return { faults, unheld };
+}
+
 function computeCarryFindings(ctx) {
   if (ctx.settingsLayout !== 'new' || !ctx.rawSiteConfig) return [];
   const files = readSettingsFiles(ctx.vaultPath);
   let faults;
-  let settings;
+  let unheld;
   try {
-    faults = pinned.settingFaults(ctx.vaultPath, ctx.rawSiteConfig, files);
-    settings = pinned.readSettingValues(ctx.vaultPath, ctx.rawSiteConfig, files);
+    ({ faults, unheld } = unheldPackSettings(ctx.vaultPath, ctx.rawSiteConfig, files));
   } catch {
     // A settings file the pin cannot parse is reported where it is read (the build stops on the
     // pin's own error); there are no resolved values here to compare the pack with.
@@ -134,12 +160,9 @@ function computeCarryFindings(ctx) {
         message: "_meta/vault-config.md is left over from before gm-apprentice's update and is not read. This vault's settings are in _meta/vault-config.yaml.",
         data: {},
       }));
-      continue;
     }
-    if (fault.kind !== 'old-name' || fault.source !== 'site' || !fault.setting) continue;
-    if (pinIgnores(fault)) continue;
-    const vaultValue = valueAt(settings.values, fault.setting);
-    if (isHeldByVault(fault.name, fault.value, vaultValue, ctx.vaultPath)) continue;
+  }
+  for (const { fault, vaultValue, origin } of unheld) {
     const base = { category: 'config', campaign: ctx.campaign, path: null };
     const data = { packKey: fault.name, setting: fault.setting };
     if (fault.level === 'stop') {
@@ -156,7 +179,7 @@ function computeCarryFindings(ctx) {
         message: `${fault.name} in the pack hides more than the vault's settings do (${fault.setting}), and the build no longer reads the pack, so ${what}. ${carryHint(ctx.campaign)}`,
         data: { ...data, entries },
       }));
-    } else if (settings.origins[fault.setting] === 'file') {
+    } else if (origin === 'file') {
       findings.push(createFinding({
         ...base,
         id: 'config/pack-setting-differs',
@@ -181,6 +204,7 @@ const only = (id) => (ctx) => carryFindings(ctx).filter((f) => f.id === id);
 
 module.exports = {
   isHeldByVault,
+  unheldPackSettings,
   carryHint,
   runPackHidingNotCarried: only('config/pack-hiding-not-carried'),
   runPackSettingNotCarried: only('config/pack-setting-not-carried'),
