@@ -1087,6 +1087,10 @@ module.exports = deepFreeze({
       what: 'A setting the generator cannot read stops the build. It may be a setting that hides something from players, or one that says where the site is built or what it keeps. A name that looks like one of these but is misspelt or in the wrong place counts too. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, a `mode:` other than `player` or `full`, or a folder to keep written with a slash. The generator will not build until it is fixed, because its safe guess might not be what you meant. The message is the generator\'s own.',
       action: 'Fix the setting the message names. `on`, `off`, `yes`, `no`, `true` and `false` all work for a switch, and a list needs one entry per line.',
     },
+    'config/switch-word-now-off': {
+      what: '`publish.exclude_drafts` or `publish.exclude_callouts` in `_meta/vault-config.md` is written as `no`, `off` or `"false"`. Up to GM-Scriptorium 0.5.0 any text there counted as on, so these hid draft pages or callouts. The generator now reads them as off, so those pages and callouts are published.',
+      action: 'Set the setting to `true` to hide them, or to `false` to keep publishing them and silence this warning. *Since the generator moved to publish-v1.26.0.*',
+    },
     'config/site-vault-path-mismatch': {
       what: 'The site config\'s `vaultPath` points at a different folder from the vault GM-Scriptorium is using. The vault from your settings file wins, so this is reported and nothing stops.',
       action: 'Remove `vaultPath` from the site config, or point it at the vault you mean.',

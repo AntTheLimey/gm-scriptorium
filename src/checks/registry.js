@@ -221,6 +221,15 @@ const CHECKS = Object.freeze([
       'A setting the pinned generator cannot read stops its build (lib/config.js assertNoStops): one that hides something (publish.mode, an exclude_ list or switch, overrides.fields, or the site file\'s excludeSections, excludeFields, excludeDirs or excludeCallouts), or one that says where the site is built or what it keeps (the output folder, or preserveDirs in the site file). A name that looks like one of these but is misspelt or misplaced counts too. The message is the generator\'s own.',
   },
   {
+    id: 'config/switch-word-now-off',
+    category: 'config',
+    defaultSeverity: 'warn',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'publish.exclude_drafts or publish.exclude_callouts in _meta/vault-config.md is written as text the pinned generator now reads as off (no, off or "false"). Up to GM-Scriptorium 0.5.0 (publish-v1.21.0) any text counted as on, so these hid draft pages or callouts; from publish-v1.26.0 they are published.',
+  },
+  {
     id: 'config/site-vault-path-mismatch',
     category: 'config',
     defaultSeverity: 'warn',

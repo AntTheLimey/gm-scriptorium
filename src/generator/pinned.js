@@ -134,15 +134,17 @@ const { parseManifest } = require('gm-apprentice-publish/lib/manifest');
 // lib/config.js:379 (module.exports).
 const { vaultRelPath, scanConfigFor } = require('gm-apprentice-publish/lib/config');
 
-// lib/settings/folders.js:104 and lib/settings/legacy.js:453 (module.exports). At publish-v1.26.0
-// normalizeExcludeDir (lib/settings/folders.js:12-27) and stricterCallouts (lib/settings/legacy.js:64-74)
-// moved out of lib/config.js; they are still how the pin spells an exclude_dirs entry and picks
-// exclude_callouts. normalizeExcludeDir's third argument is now a function the pin tells about a
+// lib/settings/folders.js:104 and lib/settings/types.js:125 (module.exports). At publish-v1.26.0
+// normalizeExcludeDir (lib/settings/folders.js:12-27) moved out of lib/config.js; it is still how the
+// pin spells an exclude_dirs entry. readSwitch (lib/settings/types.js:8-13) is the pin's one reader of
+// a switch word (true, yes, on, false, no, off): true, false, or null for text that is not one, and
+// undefined for a setting that is not set. normalizeExcludeDir's third argument is now a function the pin tells about a
 // dropped entry (it was true, false or a function). Scriptorium passes `false` to mean "quietly",
 // which the pin would now call and throw on, so the wrapper below turns anything that is not a
 // function into a no-op.
 const settingsFolders = require('gm-apprentice-publish/lib/settings/folders');
 const { stricterCallouts } = require('gm-apprentice-publish/lib/settings/legacy');
+const { readSwitch } = require('gm-apprentice-publish/lib/settings/types');
 
 /**
  * The pin's normalizeExcludeDir, with a non-function `say` read as "say nothing".
@@ -443,6 +445,7 @@ module.exports = {
   scanConfigFor,
   normalizeExcludeDir,
   stricterCallouts,
+  readSwitch,
   slugify,
   mapFolder,
   dirIsExcluded,

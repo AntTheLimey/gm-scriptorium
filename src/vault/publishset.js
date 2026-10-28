@@ -105,6 +105,9 @@ function siteConfigForSettings(jsonConfig) {
  * pin carries them. Also returns:
  *   - `configSources`: the RAW (un-defaulted, un-merged) list each file supplied, or undefined.
  *     config/exclude-*-divergence needs the vault's own list, never the merged one.
+ *   - `switchWords`: each of publish.exclude_drafts and publish.exclude_callouts that the vault's file
+ *     writes as TEXT the pin reads as off (`no`, `off`, "false"), as {setting, raw}. At
+ *     publish-v1.21.0 any text counted as on. config/switch-word-now-off reports them.
  *   - `stops`: the pin's stop-level faults, each with its `message`, exactly the faults that make
  *     the build refuse to run (lib/config.js assertNoStops). config/settings-fault reports them.
  *
@@ -112,7 +115,7 @@ function siteConfigForSettings(jsonConfig) {
  * Here it is read as if the file held no settings (as the port did), and frontmatter/parse-error
  * reports the file.
  *
- * @returns {{ publishConfig: object, configSources: object, stops: object[] }}
+ * @returns {{ publishConfig: object, configSources: object, stops: object[], switchWords: object[] }}
  */
 function loadPublishConfig(vaultPath, jsonConfig = {}) {
   const configFile = path.join(vaultPath, '_meta', 'vault-config.md');
@@ -165,7 +168,14 @@ function loadPublishConfig(vaultPath, jsonConfig = {}) {
     },
   };
 
-  return { publishConfig, configSources, stops: settings.stops };
+  // The switch settings whose old meaning was "any text is on": see config/switch-word-now-off.
+  const switchWords = [];
+  for (const key of ['exclude_drafts', 'exclude_callouts']) {
+    const raw = publish[key];
+    if (typeof raw === 'string' && pinned.readSwitch(raw) === false) switchWords.push({ setting: `publish.${key}`, raw });
+  }
+
+  return { publishConfig, configSources, stops: settings.stops, switchWords };
 }
 
 // ---------------------------------------------------------------------------
@@ -383,10 +393,11 @@ function pairStoryFiles(pages) {
  *   manifest: object|null,
  *   configSources: object,
  *   stops: object[],
+ *   switchWords: object[],
  * }}
  */
 function computePublishedSet(vaultPath, jsonConfig) {
-  const { publishConfig, configSources, stops } = loadPublishConfig(vaultPath, jsonConfig);
+  const { publishConfig, configSources, stops, switchWords } = loadPublishConfig(vaultPath, jsonConfig);
   const manifest = loadManifest(vaultPath);
   // lib/config.js's scanConfigFor(config, publishConfig): the scan must see the already-merged,
   // already-unioned exclude_dirs (vault-config.md's publish.exclude_dirs unioned with the site
@@ -414,6 +425,7 @@ function computePublishedSet(vaultPath, jsonConfig) {
     manifest,
     configSources,
     stops,
+    switchWords,
   };
 }
 

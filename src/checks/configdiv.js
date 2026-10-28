@@ -236,6 +236,28 @@ function runSettingsFault(ctx) {
   });
 }
 
+/**
+ * config/switch-word-now-off: `no`, `off` or "false" for publish.exclude_drafts or
+ * publish.exclude_callouts hid the drafts or callouts up to GM-Scriptorium 0.5.0 (the pin then
+ * counted any text as on). Since publish-v1.26.0 they are switch words that mean off, so those pages
+ * and callouts are now published. One WARN per setting, naming the value as the file writes it.
+ */
+const SWITCH_WORD_WHAT = { 'publish.exclude_drafts': ['draft pages', 'draft pages are published'], 'publish.exclude_callouts': ['callouts', 'callouts are published'] };
+function runSwitchWordNowOff(ctx) {
+  return (ctx.publishSet.switchWords || []).map(({ setting, raw }) => {
+    const [hid, published] = SWITCH_WORD_WHAT[setting];
+    return createFinding({
+      id: 'config/switch-word-now-off',
+      severity: 'warn',
+      category: 'config',
+      campaign: ctx.campaign,
+      path: '_meta/vault-config.md',
+      message: `${setting} is ${JSON.stringify(raw)}. Up to GM-Scriptorium 0.5.0 this hid ${hid}; it now means off, so ${published}. Set it to true to hide them, or false to keep publishing them and silence this warning.`,
+      data: { setting, value: raw },
+    });
+  });
+}
+
 /** config/site-vault-path-mismatch (FR-18): 0 findings when ctx.vaultMismatch is null, else one WARN naming both paths. */
 function runSiteVaultPathMismatch(ctx) {
   if (!ctx.vaultMismatch) return [];
@@ -281,6 +303,7 @@ function runPackShadowed(ctx) {
 
 module.exports = {
   runSettingsFault,
+  runSwitchWordNowOff,
   runExcludeSectionsDivergence,
   runExcludeDirsDivergence,
   runExcludeFieldsDivergence,
