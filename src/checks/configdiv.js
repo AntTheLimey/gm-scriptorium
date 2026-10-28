@@ -56,6 +56,17 @@ function headingSurvives(ctx, sectionName) {
 }
 
 /**
+ * The file the vault keeps its settings in, as the messages below name it. A list there replaces the
+ * pin defaults on either layout: the yaml's player_site.hide lists settle with origin 'file' and
+ * replace the default in the pin's reader, as publish.exclude_* in the md always did. These
+ * dropped-default checks therefore run on both layouts. The pack-against-vault comparisons (exclude
+ * dirs below) do not run on the moved layout: the carry checks own them.
+ */
+function vaultSettingsFile(ctx) {
+  return ctx.settingsLayout === 'new' ? '_meta/vault-config.yaml' : '_meta/vault-config.md';
+}
+
+/**
  * exclude_sections: when _meta/vault-config.md supplies its own list, a pin
  * default (PUBLISH_DEFAULTS.exclude_sections, the registry's player_site.hide.sections) that list
  * doesn't re-name is silently dropped from the effective list (lib/settings/legacy.js:86-139's
@@ -66,7 +77,7 @@ function headingSurvives(ctx, sectionName) {
  * this reports nothing.
  */
 function runExcludeSectionsDivergence(ctx) {
-  if (ctx.settingsLayout === 'new') return []; // the pack is no longer a second source; see runPackHidingNotCarried
+  const file = vaultSettingsFile(ctx);
   const { vault, json } = ctx.publishSet.configSources;
   if (!vault.exclude_sections && !json.excludeSections) return [];
 
@@ -83,7 +94,7 @@ function runExcludeSectionsDivergence(ctx) {
         severity: fires ? 'error' : 'warn',
         category: 'config',
         campaign: ctx.campaign,
-        message: `"## ${section}" is one of the default excluded sections, but _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded${
+        message: `"## ${section}" is one of the default excluded sections, but ${file} supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded${
           fires ? ' and the heading renders in published output' : ''
         }`,
         data: { section, appliesInOutput: fires },
@@ -177,7 +188,7 @@ function toCamelCase(snake) {
  * added to them from publish-v1.26.0 (:117-120); before, a list from either file replaced them.
  */
 function runExcludeFieldsDivergence(ctx) {
-  if (ctx.settingsLayout === 'new') return []; // the pack is no longer a second source; see runPackHidingNotCarried
+  const file = vaultSettingsFile(ctx);
   const effective = new Set(ctx.publishSet.publishConfig.exclude_fields || []);
   const findings = [];
 
@@ -197,7 +208,7 @@ function runExcludeFieldsDivergence(ctx) {
         severity: 'warn',
         category: 'config',
         campaign: ctx.campaign,
-        message: `default excluded field "${defaultField}" is no longer filtered; the _meta/vault-config.md exclude_fields list replaced the default list instead of extending it`,
+        message: `default excluded field "${defaultField}" is no longer filtered; the ${file} exclude_fields list replaced the default list instead of extending it`,
         data: { field: defaultField, occurrences: { [defaultField]: exactCount, [camel]: camelCount } },
       }),
     );

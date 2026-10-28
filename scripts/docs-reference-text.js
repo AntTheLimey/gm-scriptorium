@@ -1072,7 +1072,7 @@ module.exports = deepFreeze({
       action: 'Add the folder to `folderMap` if its notes belong on the site. If not, list it in `excludeDirs`.',
     },
     'config/exclude-sections-divergence': {
-      what: 'One of the built-in hidden headings (such as GM Notes) is no longer hidden, because `_meta/vault-config.md` gives its own `exclude_sections` list, which replaces the built-in one. A list in `vault.config.json` alone adds to the built-in list instead. It is an ERROR when that heading really appears on a published page, and a WARN when it does not.',
+      what: 'One of the built-in hidden headings (such as GM Notes) is no longer hidden, because the vault\'s settings file (`_meta/vault-config.md`, or `_meta/vault-config.yaml` once the settings have moved) gives its own `exclude_sections` list, which replaces the built-in one. A list in `vault.config.json` alone adds to the built-in list instead. It is an ERROR when that heading really appears on a published page, and a WARN when it does not.',
       action: 'Add the heading named in the message to your list if it should still be hidden.',
     },
     'config/exclude-dirs-divergence': {
@@ -1080,7 +1080,7 @@ module.exports = deepFreeze({
       action: 'Add the folder to the list the message says is missing it, so both files agree. This warning never stops a `build`.',
     },
     'config/exclude-fields-divergence': {
-      what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because `_meta/vault-config.md` gives its own `exclude_fields` list, which replaces the built-in one. A list in `vault.config.json` alone adds to the built-in list instead.',
+      what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because the vault\'s settings file (`_meta/vault-config.md`, or `_meta/vault-config.yaml` once the settings have moved) gives its own `exclude_fields` list, which replaces the built-in one. A list in `vault.config.json` alone adds to the built-in list instead.',
       action: 'Add the field named in the message to your `exclude_fields` list.',
     },
     'config/settings-fault': {

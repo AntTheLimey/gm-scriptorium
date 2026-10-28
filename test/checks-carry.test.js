@@ -262,26 +262,46 @@ test('isHeldByVault: arrays by entry, callouts by stricterness, objects by key, 
   assert.equal(isHeldByVault('siteTitle', 'T', 'U'), false);
 });
 
-test('the three divergence checks are silent on a moved vault whose pack differs, and speak on the same context read as legacy', () => {
-  const { ctx } = findingsFor(
+function ctxWithShortYamlLists() {
+  return findingsFor(
     { searchEnabled: true, excludeSections: ['Pack Only Secret'], excludeFields: ['pack_only_field'], excludeDirs: ['Pack Folder'] },
     { before: (vault) => {
-      // A yaml that names fewer sections and fields than the defaults would, on a legacy vault, drop the rest.
+      // A yaml that names fewer sections and fields than the defaults: its lists replace the defaults.
       const file = path.join(vault, '_meta', 'vault-config.yaml');
       const text = fs.readFileSync(file, 'utf8')
         .replace(/ {4}sections: \[.*\]\n/, '    sections: ["GM Notes"]\n')
         .replace(/ {4}fields: \[.*\]\n/, '    fields: ["secrets"]\n');
       fs.writeFileSync(file, text);
     } },
-  );
+  ).ctx;
+}
+
+test('the exclude-dirs divergence compares the pack with the vault: silent on a moved vault, speaks on the same context read as legacy', () => {
+  const ctx = ctxWithShortYamlLists();
   assert.equal(ctx.settingsLayout, 'new');
-  // The dirs check compares the pack with the yaml; on a moved vault the pack holds a folder the yaml lacks.
+  // The pack holds a folder the yaml lacks.
   const moved = { ...ctx, jsonConfig: { ...ctx.jsonConfig, excludeDirs: ['Pack Folder'] } };
   const legacy = { ...moved, settingsLayout: 'legacy' };
-  for (const run of [runExcludeSectionsDivergence, runExcludeDirsDivergence, runExcludeFieldsDivergence]) {
-    assert.deepEqual(run(moved), [], `${run.name} is silent on a moved vault`);
-    assert.ok(run(legacy).length > 0, `${run.name} speaks on the same context read as legacy`);
-  }
+  assert.deepEqual(runExcludeDirsDivergence(moved), []);
+  assert.ok(runExcludeDirsDivergence(legacy).length > 0);
+});
+
+test('a yaml hide list that drops a default is reported on a moved vault, naming the yaml', () => {
+  const ctx = ctxWithShortYamlLists();
+  assert.equal(ctx.settingsLayout, 'new');
+  const sections = runExcludeSectionsDivergence(ctx).filter((f) => f.data.section === 'DM Notes');
+  assert.equal(sections.length, 1);
+  assert.equal(sections[0].severity, 'warn');
+  assert.equal(
+    sections[0].message,
+    '"## DM Notes" is one of the default excluded sections, but _meta/vault-config.yaml supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded',
+  );
+  const fields = runExcludeFieldsDivergence(ctx).filter((f) => f.data.field === 'gm_notes');
+  assert.equal(fields.length, 1);
+  assert.equal(
+    fields[0].message,
+    'default excluded field "gm_notes" is no longer filtered; the _meta/vault-config.yaml exclude_fields list replaced the default list instead of extending it',
+  );
 });
 
 test('settings-fault leaves out only the site-file hide faults the carry check owns', () => {
