@@ -6,11 +6,10 @@ const os = require('os');
 const path = require('path');
 const pinned = require('../generator/pinned');
 const backups = require('../config/backups');
-const { platformFoldsCase } = require('./exclusions');
 const { ScriptoriumError, VaultUnreachableError } = require('../util/errors');
 const { stripBom } = require('../util/bom');
 const { readSettingsFiles } = require('./publishset');
-const { unheldPackSettings, missingEntries, vaultSets } = require('../checks/carry');
+const { unheldPackSettings, missingEntries, vaultSets, isVaultPack } = require('../checks/carry');
 
 /*
  * The carry (rung 3b): folds the settings a campaign pack's vault.config.json still holds into the
@@ -49,7 +48,6 @@ const SCRATCH_PREFIX = 'scriptorium-carry-';
 const PIN_CHANGED_RE = /changed since the move was planned/;
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
-const fold = (s) => (platformFoldsCase() ? s.toLowerCase() : s);
 
 function blocked(blockers) {
   return { state: 'blocked', lines: [], blockers, plan: null, internal: null, unmoved: [] };
@@ -197,9 +195,10 @@ function planCarry({ vaultPath, packConfigPath, siteConfig, writePack = true }) 
       return blocked([`could not read ${packConfigPath}: ${err.code || err.message}`]);
     }
   }
+  // The same test check and build use to decide whether to name the carry (src/checks/carry.js), so they
+  // cannot disagree about which campaigns the carry reaches.
   if (writePack) {
-    const expected = path.join(realOrResolved(path.join(realVault, '_meta', 'scriptorium')), 'vault.config.json');
-    if (fold(realOrResolved(packConfigPath)) !== fold(expected)) {
+    if (!isVaultPack(realVault, packConfigPath)) {
       return blocked([
         `${packConfigPath} is not the pack in this vault (_meta/scriptorium/vault.config.json), and the carry only rewrites that one. ` +
           'Move the settings by hand, or point the campaign at the pack in the vault.',
