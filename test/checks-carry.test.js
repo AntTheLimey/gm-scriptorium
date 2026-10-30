@@ -27,7 +27,7 @@ const pinned = require('../src/generator/pinned');
 const { moveVaultCopy, replaceYamlFolderMap } = require('./helpers/moved-vault');
 
 const SAMPLE = path.join(__dirname, '..', 'examples', 'the-long-lease');
-const CARRY_IDS = ['config/pack-hiding-not-carried', 'config/pack-setting-not-carried', 'config/pack-setting-differs', 'config/folder-map-not-carried'];
+const CARRY_IDS = ['config/pack-hiding-not-carried', 'config/pack-setting-not-carried', 'config/pack-setting-differs', 'config/folder-map-not-carried', 'config/folder-map-missing'];
 // The context is built with the campaign name 'x'.
 const CARRY_HINT = 'Run "gm-scriptorium carry x" to move it into the vault\'s settings.';
 
@@ -397,10 +397,10 @@ const unreadableYaml = (line) => (vault) => {
   fs.writeFileSync(file, text.replace('player_site:\n', `player_site:\n${line}\n`));
 };
 
-test('a yaml folder map the pin cannot read, with a pack folder map: one error that says to fix the yaml, not to carry', () => {
+test('a yaml folder map the pin cannot read, with a pack folder map: one folder-map-missing error that says to fix the yaml, not to carry', () => {
   const { findings, ctx } = findingsFor({ folderMap: { Places: 'places' } }, { before: unreadableYaml('  folder_map: "not a map"') });
-  assert.deepEqual(carryOf(findings).map((f) => f.id), ['config/folder-map-not-carried']);
-  const found = findings.find((f) => f.id === 'config/folder-map-not-carried');
+  assert.deepEqual(carryOf(findings).map((f) => f.id), ['config/folder-map-missing']);
+  const found = findings.find((f) => f.id === 'config/folder-map-missing');
   assert.equal(found.severity, 'error');
   assert.equal(
     found.message,
@@ -446,9 +446,9 @@ function carriedFindings(pack, { yamlMap, configPath } = {}) {
   }
 }
 
-test('N1: a carried vault whose yaml folder map cannot be read is a folder-map error, with an empty pack', () => {
+test('N1: a carried vault whose yaml folder map cannot be read is a folder-map-missing error, with an empty pack', () => {
   const { findings } = carriedFindings({}, { yamlMap: '  folder_map: "Sessions"' });
-  const found = findings.filter((f) => f.id === 'config/folder-map-not-carried');
+  const found = findings.filter((f) => f.id === 'config/folder-map-missing');
   assert.equal(found.length, 1);
   assert.equal(found[0].severity, 'error');
   assert.equal(
@@ -457,9 +457,9 @@ test('N1: a carried vault whose yaml folder map cannot be read is a folder-map e
   );
 });
 
-test('N1: a carried vault whose yaml has no folder map is a folder-map error, with an empty pack', () => {
+test('N1: a carried vault whose yaml has no folder map is a folder-map-missing error, with an empty pack', () => {
   const { findings } = carriedFindings({}, { yamlMap: null });
-  const found = findings.filter((f) => f.id === 'config/folder-map-not-carried');
+  const found = findings.filter((f) => f.id === 'config/folder-map-missing');
   assert.equal(found.length, 1);
   assert.equal(found[0].severity, 'error');
   assert.equal(
@@ -468,7 +468,7 @@ test('N1: a carried vault whose yaml has no folder map is a folder-map error, wi
   );
 });
 
-test('N1: when a carry backup of the yaml exists, the folder-map error names the folder it is in', () => {
+test('N1: when a carry backup of the yaml exists, the folder-map-missing error names the folder it is in', () => {
   let dir;
   const { findings } = carriedFindings({}, {
     yamlMap: null,
@@ -481,7 +481,7 @@ test('N1: when a carry backup of the yaml exists, the folder-map error names the
       return cfg;
     },
   });
-  const found = findings.filter((f) => f.id === 'config/folder-map-not-carried');
+  const found = findings.filter((f) => f.id === 'config/folder-map-missing');
   assert.equal(found.length, 1);
   assert.equal(
     found[0].message,
@@ -489,9 +489,9 @@ test('N1: when a carry backup of the yaml exists, the folder-map error names the
   );
 });
 
-test('N1: a carried vault with a readable yaml folder map has no folder-map error (control)', () => {
+test('N1: a carried vault with a readable yaml folder map has no folder-map-missing error (control)', () => {
   const { findings } = carriedFindings({});
-  assert.deepEqual(findings.filter((f) => f.id === 'config/folder-map-not-carried'), []);
+  assert.deepEqual(findings.filter((f) => f.id === 'config/folder-map-missing'), []);
 });
 
 test('item 4: a pack siteUrl the yaml does not set is one not-carried warning that says the pack is still read for now', () => {

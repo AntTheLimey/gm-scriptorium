@@ -17,6 +17,9 @@ const { resolveMachineDir, BACKUPS_DIRNAME, campaignSegment } = require('../conf
  *
  *   - a hide-list entry the pack holds and the vault's list lacks would be lost, so it is an ERROR
  *     (config/pack-hiding-not-carried): the page or section it hid would publish;
+ *   - a vault folder map that is missing or cannot be read, with none in the pack for the carry to bring
+ *     (config/folder-map-missing, ERROR), or one the pin cannot read whatever the pack holds: the carry
+ *     keeps a value the vault's settings hold, so the GM sets or fixes it in the yaml;
  *   - a folder map the pack holds and the vault does not set is an ERROR (config/folder-map-not-carried):
  *     the build would map no folder and publish a near-empty site over the players' one;
  *   - any other setting the pack holds and the vault does not set is a WARN
@@ -338,10 +341,11 @@ function computeCarryFindings(ctx) {
       }));
     } else if (fault.name === 'folderMap' && origin === 'fault') {
       // The vault's settings hold a folder map the pin cannot read: the build maps no folder, and the carry
-      // keeps the vault's value, so only a fix in the yaml helps.
+      // keeps the vault's value, so only a fix in the yaml helps: config/folder-map-missing,
+      // not the carry's own id.
       findings.push(createFinding({
         ...base,
-        id: 'config/folder-map-not-carried',
+        id: 'config/folder-map-missing',
         severity: 'error',
         message: `${fault.setting} in _meta/vault-config.yaml is ${show(vaultShown)}, which cannot be read, so the build would publish none of the mapped folders. The folder map in ${file} is not read either. ${fixYaml(fault.setting)}`,
         data,
@@ -389,7 +393,7 @@ function computeCarryFindings(ctx) {
     const problem = yamlFolderMapProblem(folderMap, ctx);
     if (problem) {
       findings.push(createFinding({
-        id: 'config/folder-map-not-carried',
+        id: 'config/folder-map-missing',
         severity: 'error',
         category: 'config',
         campaign: ctx.campaign,
@@ -436,6 +440,7 @@ module.exports = {
   runPackHidingNotCarried: only('config/pack-hiding-not-carried'),
   runPackSettingNotCarried: only('config/pack-setting-not-carried'),
   runFolderMapNotCarried: only('config/folder-map-not-carried'),
+  runFolderMapMissing: only('config/folder-map-missing'),
   runPackSettingDiffers: only('config/pack-setting-differs'),
   runLeftoverSettingsFile: only('config/leftover-settings-file'),
   missingEntries,

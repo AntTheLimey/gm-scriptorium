@@ -275,13 +275,13 @@ for (const flag of ['--no-check', '--force-check']) {
   });
 }
 
-test('N1, carried: plain build stops at the check with exit 2, and check names the folder-map error', () => {
+test('N1, carried: plain build stops at the check with exit 2, and check names the folder-map-missing error', () => {
   withScratch((root) => {
     const f = carried(root);
     replaceYamlFolderMap(f.vault, '  folder_map: "Sessions"');
     const checked = run(root, ['check']);
     assert.equal(checked.code, 2, checked.all);
-    assert.match(checked.all, /^ERROR config\/folder-map-not-carried {2}player_site\.folder_map in _meta\/vault-config\.yaml is "Sessions", which cannot be read/m);
+    assert.match(checked.all, /^ERROR config\/folder-map-missing {2}player_site\.folder_map in _meta\/vault-config\.yaml is "Sessions", which cannot be read/m);
     assert.equal(run(root, ['build']).code, 2);
     assert.ok(!fs.existsSync(f.site));
   });

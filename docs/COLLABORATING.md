@@ -353,7 +353,8 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 - **`src/cli/check.js`'s shape check** (`assertScanKeysPresent`, described above) is the
   Scriptorium-side gate on this contract. It applies only to a vault on `_meta/vault-config.md`. On a
   vault whose settings moved to `_meta/vault-config.yaml`, `folderMap` and `excludeDirs` belong in the
-  yaml, and `config/folder-map-not-carried` is the gate instead (ADR 0071, section 3).
+  yaml, and `config/folder-map-not-carried` and `config/folder-map-missing` are the gate instead (ADR 0071,
+  section 3).
 - **`_meta/vault-config.yaml`** (from publish-v1.26.0, written by gm-apprentice's settings move): read
   only through the pin's own reader, through the facade, with the text served from
   `src/vault/read.js`. On such a vault the pin no longer reads the moved keys from `vault.config.json`,

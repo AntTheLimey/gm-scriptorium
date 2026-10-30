@@ -47,6 +47,7 @@ const RUNNERS = {
   'config/pack-hiding-not-carried': carry.runPackHidingNotCarried,
   'config/pack-setting-not-carried': carry.runPackSettingNotCarried,
   'config/folder-map-not-carried': carry.runFolderMapNotCarried,
+  'config/folder-map-missing': carry.runFolderMapMissing,
   'config/pack-setting-differs': carry.runPackSettingDiffers,
   'config/leftover-settings-file': carry.runLeftoverSettingsFile,
   'config/theme-scheme-mismatch': themescheme.runThemeSchemeMismatch,

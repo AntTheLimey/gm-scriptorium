@@ -275,6 +275,15 @@ const CHECKS = Object.freeze([
       'On a vault whose settings moved to _meta/vault-config.yaml, the pack\'s vault.config.json has a folderMap and the vault\'s settings set no player_site.folder_map. The build reads no folder map from the pack, so it would map no folder and publish a near-empty site. Run "gm-scriptorium carry" to move the map into the vault\'s settings.',
   },
   {
+    id: 'config/folder-map-missing',
+    category: 'config',
+    defaultSeverity: 'error',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'On a vault whose settings moved to _meta/vault-config.yaml, the vault\'s settings set no player_site.folder_map, or one the generator cannot read, and the pack holds no folder map for the carry to bring. The build would map no folder and publish a near-empty site, so it refuses whatever its flags. Set or fix player_site.folder_map in _meta/vault-config.yaml, or restore it from the copy a carry kept in the backups folder.',
+  },
+  {
     id: 'config/pack-setting-differs',
     category: 'config',
     defaultSeverity: 'warn',
