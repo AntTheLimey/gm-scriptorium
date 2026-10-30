@@ -10,7 +10,7 @@ const { platformFoldsCase } = require('./exclusions');
 const { ScriptoriumError, VaultUnreachableError } = require('../util/errors');
 const { stripBom } = require('../util/bom');
 const { readSettingsFiles } = require('./publishset');
-const { unheldPackSettings, missingEntries } = require('../checks/carry');
+const { unheldPackSettings, missingEntries, vaultSets } = require('../checks/carry');
 
 /*
  * The carry (rung 3b): folds the settings a campaign pack's vault.config.json still holds into the
@@ -98,8 +98,15 @@ function setAtPath(obj, segs, value) {
 function cannotMove(unheld) {
   return unheld
     .filter((u) => u.fault.level === 'stop' || u.origin !== 'file')
-    .map((u) => ({ name: u.fault.name, setting: u.fault.setting, level: u.fault.level }));
+    .map((u) => ({ name: u.fault.name, setting: u.fault.setting, level: u.fault.level, origin: u.origin, vaultShown: u.vaultShown }));
 }
+
+/**
+ * A title or folder map the vault's settings file sets, but with a value the pin cannot read (origin
+ * 'fault'). The carry never writes over a value the vault's settings hold, readable or not: it is kept,
+ * the pack keeps its own, and the GM fixes the yaml.
+ */
+const unreadableOwn = (u) => OWN_KEYS.includes(u.name) && u.origin === 'fault';
 
 /** The pin's "settings out of <pack>: a, b, c." line with the names that stay left out of its list. */
 function withoutStaying(line, packPath, staying) {
@@ -126,7 +133,7 @@ function unheldSetLines(unheld, vaultPath) {
       } else {
         out.push(`${u.fault.setting}: set to ${showValue(u.fault.value)}.`);
       }
-    } else if (['siteTitle', 'folderMap'].includes(u.fault.name) && u.origin !== 'file') {
+    } else if (['siteTitle', 'folderMap'].includes(u.fault.name) && !vaultSets(u.origin)) {
       out.push(`${u.fault.setting}: set to ${showValue(u.fault.value)}.`);
     }
   }
@@ -141,8 +148,10 @@ function differLines(differs) {
 }
 
 function stayLines(unmoved, packPath) {
-  return unmoved.map(
-    (u) => `${u.name} stays in ${packPath}: the carry cannot move it, and the vault's settings do not set ${u.setting}. Set ${u.setting} in _meta/vault-config.yaml yourself.`,
+  return unmoved.map((u) =>
+    u.origin === 'fault'
+      ? `${u.name} stays in ${packPath}: the vault's settings set ${u.setting} to ${showValue(u.vaultShown)}, which cannot be read, and the carry leaves it as it is. Fix ${u.setting} in _meta/vault-config.yaml.`
+      : `${u.name} stays in ${packPath}: the carry cannot move it, and the vault's settings do not set ${u.setting}. Set ${u.setting} in _meta/vault-config.yaml yourself.`,
   );
 }
 
@@ -256,10 +265,10 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
     unmoved = cannotMove(unheld).filter((u) => u.level !== 'stop' && !carriedFrom.has(u.name));
     // siteTitle and folderMap are set by the carry itself: the vault does not set them (they move), or it does,
     // differently (its value is used, and the line says so).
-    own = unmoved.filter((u) => OWN_KEYS.includes(u.name));
-    unmoved = unmoved.filter((u) => !OWN_KEYS.includes(u.name));
+    own = unmoved.filter((u) => OWN_KEYS.includes(u.name) && !unreadableOwn(u));
+    unmoved = unmoved.filter((u) => !OWN_KEYS.includes(u.name) || unreadableOwn(u));
     // What would be written to the vault's settings: a hide-list entry it lacks, or a title or folder map it does not set.
-    vaultLacks = unheld.some((u) => u.fault.level === 'stop' || (OWN_KEYS.includes(u.fault.name) && u.origin !== 'file'));
+    vaultLacks = unheld.some((u) => u.fault.level === 'stop' || (OWN_KEYS.includes(u.fault.name) && !vaultSets(u.origin)));
     differs = unheld
       .filter((u) => OWN_KEYS.includes(u.fault.name) && u.origin === 'file')
       .map((u) => ({ name: u.fault.name, setting: u.fault.setting, value: u.fault.value, vaultValue: u.vaultValue }));
@@ -287,7 +296,11 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
     const keepLines = differs.map(
       (d) => `${d.name === 'siteTitle' ? 'The site title' : 'The folder map'} init would set is ${showValue(d.value)}, but the vault's settings set ${d.setting} to ${showValue(d.vaultValue)}; the vault's value is kept.`,
     );
-    const stay = unmoved.map((u) => `${u.name} is not set in the vault's settings and init cannot put it there, so it stays in the pack for you to set in _meta/vault-config.yaml.`);
+    const stay = unmoved.map((u) =>
+      u.origin === 'fault'
+        ? `The vault's settings set ${u.setting} to ${showValue(u.vaultShown)}, which cannot be read; init leaves it as it is. Fix ${u.setting} in _meta/vault-config.yaml.`
+        : `${u.name} is not set in the vault's settings and init cannot put it there, so it stays in the pack for you to set in _meta/vault-config.yaml.`,
+    );
     return { state: 'ready', lines: [...setLines, ...keepLines, ...stay], blockers: [], plan, internal, unmoved };
   }
   const lines = plan.lines.map((l) => withoutStaying(namingThePack(l, internal), packConfigPath, stayNames));
@@ -373,15 +386,15 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
       }
     };
     const after = readBack();
-    const own = after.filter((u) => OWN_KEYS.includes(u.name));
-    let staying = after.filter((u) => !OWN_KEYS.includes(u.name));
+    const own = after.filter((u) => OWN_KEYS.includes(u.name) && !unreadableOwn(u));
+    let staying = after.filter((u) => !OWN_KEYS.includes(u.name) || unreadableOwn(u));
     const moved = [];
     let ownFailure = null;
     if (own.length > 0) {
       // Why this step exists: see OWN_KEYS (AntTheLimey/gm-apprentice#539).
       try {
         pinned.applySettingsChanges(vaultPath, own.map((u) => ({ op: 'set', name: u.setting, value: valueAtPath(internal.pack, u.name.split('.')) })));
-        const still = readBack().filter((u) => OWN_KEYS.includes(u.name));
+        const still = readBack().filter((u) => OWN_KEYS.includes(u.name) && !unreadableOwn(u));
         if (still.length > 0) throw new Error('it did not read back as written');
         for (const u of own) moved.push(`\`${u.name}\` moved to \`${u.setting}\`.`);
       } catch (err) {
@@ -394,7 +407,7 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     const backupText = `The files as they were are kept at ${done.yaml}${done.pack ? ` and ${done.pack}` : ''}.`;
     const stayNames = staying.map((u) => u.name);
     const lines = (applied.lines || []).map((l) => withoutStaying(namingThePack(l, internal), packConfigPath, stayNames));
-    lines.push(...moved, ...stayLines(staying.filter((u) => !OWN_KEYS.includes(u.name)), packConfigPath));
+    lines.push(...moved, ...stayLines(staying.filter((u) => !OWN_KEYS.includes(u.name) || unreadableOwn(u)), packConfigPath));
 
     // 3. The scratch copy becomes the pack, with whatever stays put back.
     if (writePack) {

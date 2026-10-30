@@ -228,6 +228,37 @@ test('a title and folder map the yaml already holds are not overwritten, and the
   });
 });
 
+test('a yaml title and folder map the pin cannot read are kept as written, named, and the pack keeps its own', () => {
+  withScratch((root) => {
+    const vault = setupUnfolded(root);
+    const yamlText = fs.readFileSync(yamlOf(vault), 'utf8');
+    assert.ok(yamlText.includes('player_site:\n'));
+    fs.writeFileSync(yamlOf(vault), yamlText.replace('player_site:\n', 'player_site:\n  title: ["a", "b"]\n  folder_map: "not a map"\n'));
+    const pack = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    pack.siteTitle = 'Pack Title';
+    fs.writeFileSync(packOf(vault), JSON.stringify(pack, null, 2));
+    const res = run(root, ['carry', '--yes']);
+    assert.equal(res.code, 0, res.all);
+    const yaml = fs.readFileSync(yamlOf(vault), 'utf8');
+    assert.ok(yaml.includes('  title: ["a", "b"]\n'), yaml);
+    assert.ok(yaml.includes('  folder_map: "not a map"\n'), yaml);
+    assert.ok(!yaml.includes('Pack Title'));
+    assert.ok(!yaml.includes('characters/pcs'), 'the pack folder map is not written over the vault\'s');
+    const p = packOf(vault);
+    assert.ok(
+      res.out.includes(`siteTitle stays in ${p}: the vault's settings set player_site.title to ["a","b"], which cannot be read, and the carry leaves it as it is. Fix player_site.title in _meta/vault-config.yaml.`),
+      res.out,
+    );
+    assert.ok(
+      res.out.includes(`folderMap stays in ${p}: the vault's settings set player_site.folder_map to "not a map", which cannot be read, and the carry leaves it as it is. Fix player_site.folder_map in _meta/vault-config.yaml.`),
+      res.out,
+    );
+    const left = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.equal(left.siteTitle, 'Pack Title');
+    assert.equal(left.folderMap['Characters/PCs'], 'characters/pcs');
+  });
+});
+
 test('when the title and folder map cannot be written, the pack keeps both, the command exits 3, and the rest is carried', async () => {
   const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-b4-'));
   const pinned = require('../src/generator/pinned');
