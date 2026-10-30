@@ -58,7 +58,7 @@ test('a moved vault with no title: the pack holds none of the moved keys and the
   });
 });
 
-test('after init on a moved vault with no title, check does not report the folder map as left in the pack, and a build publishes a mapped page', () => {
+test('after init on a moved vault with no title, check does not report the folder map as left in the pack, and a build publishes a mapped entity page', () => {
   withScratch((root) => {
     const vault = movedNoPack(root);
     const out = path.join(root, 'site');
@@ -68,8 +68,8 @@ test('after init on a moved vault with no title, check does not report the folde
     assert.ok(!reports(check.all, 'config/folder-map-not-carried'), check.all);
     const build = run(root, ['build', 'x']);
     assert.equal(build.code, 0, build.all);
-    assert.ok(fs.existsSync(path.join(out, 'characters', 'npcs')), `the mapped folder characters/npcs must be built: ${fs.readdirSync(out)}`);
-    assert.ok(fs.readdirSync(path.join(out, 'characters', 'npcs')).some((n) => n.endsWith('.html')));
+    // The generator always writes a section's index.html; an entity page is there only when the folder is mapped.
+    assert.ok(fs.existsSync(path.join(out, 'characters', 'npcs', 'clemency-vare.html')), `characters/npcs holds: ${fs.readdirSync(path.join(out, 'characters', 'npcs'))}`);
   });
 });
 
@@ -89,6 +89,22 @@ test('a moved vault that already holds everything init would carry: the yaml is 
     assert.deepEqual(backupsIn(root), []);
     const pack = JSON.parse(fs.readFileSync(packJsonOf(vault), 'utf8'));
     assert.ok(!('siteTitle' in pack));
+  });
+});
+
+test('a moved vault whose hide lists already match init but sets no title or folder map: both are added', () => {
+  withScratch((root) => {
+    const vault = movedNoPack(root);
+    let yaml = fs.readFileSync(yamlOf(vault), 'utf8');
+    yaml = replaceChecked(yaml, 'folders: ["_meta", "_Templates"]', 'folders: ["_meta", "_Templates", "_resources"]');
+    yaml = replaceChecked(yaml, '"reliability"]\n', '"reliability"]\n    callouts: true\n');
+    fs.writeFileSync(yamlOf(vault), yaml);
+    const res = run(root, initArgs(vault, root));
+    assert.equal(res.code, 0, res.all);
+    const after = fs.readFileSync(yamlOf(vault), 'utf8');
+    assert.match(after, /^ {2}title: "?The Long Lease"?$/m);
+    assert.match(after, /Characters\/NPCs/);
+    assert.equal(backupsIn(root).length, 1);
   });
 });
 

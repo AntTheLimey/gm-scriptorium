@@ -230,6 +230,7 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
   let unmoved;
   let own;
   let differs;
+  let vaultLacks;
   try {
     const { unheld } = unheldPackSettings(realVault, pack, readSettingsFiles(realVault));
     const carriedFrom = new Set(carried.map((c) => c.from));
@@ -238,6 +239,8 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
     // differently (its value is used, and the line says so).
     own = unmoved.filter((u) => OWN_KEYS.includes(u.name));
     unmoved = unmoved.filter((u) => !OWN_KEYS.includes(u.name));
+    // What would be written to the vault's settings: a hide-list entry it lacks, or a title or folder map it does not set.
+    vaultLacks = unheld.some((u) => u.fault.level === 'stop' || (OWN_KEYS.includes(u.fault.name) && u.origin !== 'file'));
     differs = unheld
       .filter((u) => OWN_KEYS.includes(u.fault.name) && u.origin === 'file')
       .map((u) => ({ name: u.fault.name, setting: u.fault.setting, value: u.fault.value, vaultValue: u.vaultValue }));
@@ -253,7 +256,7 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
   // add, or the title and folder map the vault lacks. The pack's own leftovers are no reason to back up and write.
   const nothingToDo = writePack
     ? carried.length === 0 && dropped.length === 0 && !writesYaml && goes.length === 0
-    : !pinned.planChangesVaultSettings(plan) && own.length === 0;
+    : carried.length === 0 && dropped.length === 0 && !vaultLacks;
   if (nothingToDo) {
     removeScratch(scratchDir);
     return { state: 'nothing', lines: stayLines(unmoved, packConfigPath), blockers: [], plan, internal: null, unmoved };

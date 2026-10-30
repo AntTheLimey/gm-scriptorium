@@ -331,24 +331,6 @@ function planSettingsCarry({ vaultPath, siteConfigPath }) {
 }
 
 /**
- * Whether a plan from planSettingsCarry would change the text of the vault's settings file. The pin lists
- * the file as written when it folds in lists that are already there, so its `files.write` cannot tell.
- * The plan keeps the file's text before and after under a hidden symbol (lib/settings/move.js, the
- * INTERNAL value `{ mend }`); when that is not there, this says true, the safe answer.
- *
- * @param {object} plan
- * @returns {boolean}
- */
-function planChangesVaultSettings(plan) {
-  for (const sym of Object.getOwnPropertySymbols(plan)) {
-    const mend = plan[sym] && plan[sym].mend;
-    if (mend && typeof mend.vaultBefore === 'string' && typeof mend.vaultAfter === 'string') return mend.vaultBefore !== mend.vaultAfter;
-    if (mend && mend.vaultFile === undefined) return false;
-  }
-  return true;
-}
-
-/**
  * Applies a plan from planSettingsCarry: writes the vault's settings file and the site file the plan
  * names. Throws, having changed nothing, when either file changed since the plan was made.
  *
@@ -663,7 +645,6 @@ module.exports = {
   stripMovedSettings,
   planSettingsCarry,
   applySettingsCarry,
-  planChangesVaultSettings,
   applySettingsChanges,
   stricterCallouts,
   headingKey,
