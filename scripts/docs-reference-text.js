@@ -789,12 +789,13 @@ module.exports = deepFreeze({
 
   'cli-commands': {
     init: {
-      what: 'Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault. The one exception is a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: there init also sets the site title, the folder map and the hide lists in that file, asks first, keeps a copy of the file outside the vault, and changes nothing else: hide lists only gain entries, and a title or folder map the file already sets is kept.',
+      what: 'Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault. *Since 0.6.0.* The one exception is a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: there init also sets the site title, the folder map and the hide lists in that file, asks first, keeps a copy of the file outside the vault, and changes nothing else: hide lists only gain entries, and a title or folder map the file already sets is kept.',
     },
     check: {
       what: 'Reads the vault and reports anything that would leak GM-only material or break the site. It changes nothing.',
     },
     carry: {
+      since: '0.6.0',
       what: 'For a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: moves the settings your pack still holds into that file. It shows what it will move, asks first, and keeps a copy of both files outside the vault. The hide lists, the site title, the folder map and the site folder\'s settings (such as `host`) move. A title or folder map the vault already sets is kept as it is, and the output says so. Anything else, such as `footer`, `searchEnabled` or a changed `attachmentsDir`, stays in the pack and is named, for you to set in the vault\'s settings. `check` tells you when to run it.',
     },
     build: {
@@ -870,7 +871,7 @@ module.exports = deepFreeze({
       what: 'The game system for the new vault, or `none` for no particular system. It is never guessed, and it only works with `--new-vault`.',
       since: '0.5.0',
     },
-    'carry --yes': { what: 'Asks no question and carries what the plan shows.' },
+    'carry --yes': { since: '0.6.0', what: 'Asks no question and carries what the plan shows.' },
     'check --graph': { what: 'Also runs the optional relationship graph checks.' },
     'build --force-out': {
       what: 'Builds into the site config\'s own `outputDir`.',
@@ -1088,26 +1089,32 @@ module.exports = deepFreeze({
       action: 'Add the field named in the message to your `exclude_fields` list.',
     },
     'config/settings-fault': {
+      since: '0.6.0',
       what: 'A setting the generator cannot read stops the build. It may be a setting that hides something from players, or one that says where the site is built or what it keeps. A name that looks like one of these but is misspelt or in the wrong place counts too. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, a `mode:` other than `player` or `full`, or a folder to keep written with a slash. The generator will not build until it is fixed, because its safe guess might not be what you meant. A `_meta/vault-config.yaml` that is not valid YAML is reported here too, naming the file. The message is the generator\'s own.',
       action: 'Fix the setting the message names. `on`, `off`, `yes`, `no`, `true` and `false` all work for a switch, and a list needs one entry per line.',
     },
     'config/pack-hiding-not-carried': {
+      since: '0.6.0',
       what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still hides something the vault\'s own list does not: an `excludeSections`, `excludeFields`, `excludeDirs` or `excludeCallouts` entry. The generator no longer reads those keys from the pack, so the section, field, folder or callout the entry hid would be published. The message names the missing entries. It is an ERROR.',
       action: 'Run `gm-scriptorium carry <campaign>` to move the entries into the vault\'s settings. Or add them to the matching `player_site.hide` list in `_meta/vault-config.yaml` yourself.',
     },
     'config/pack-setting-not-carried': {
+      since: '0.6.0',
       what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still sets something the vault\'s settings do not, such as `siteTitle`. The generator ignores the pack\'s value, so the site uses the built-in one. A key the generator no longer reads at all, such as `landingTagline`, is not reported.',
       action: 'Run `gm-scriptorium carry <campaign>` to move the value into the vault\'s settings, or set it in `_meta/vault-config.yaml` yourself.',
     },
     'config/folder-map-not-carried': {
+      since: '0.6.0',
       what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but they set no folder map, and the campaign pack\'s `vault.config.json` still has one. The generator does not read the pack\'s folder map, so it would map no folder and publish almost nothing, with no error. It is an ERROR so that a build cannot replace your players\' site with an empty one. If the vault\'s settings already hold a folder map, this is not reported.',
       action: 'Run `gm-scriptorium carry <campaign>` to move the folder map into the vault\'s settings, or set `player_site.folder_map` in `_meta/vault-config.yaml` yourself.',
     },
     'config/pack-setting-differs': {
+      since: '0.6.0',
       what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, and both it and the campaign pack\'s `vault.config.json` set the same thing, to different values. The vault\'s value is the one the site uses. The message shows both.',
       action: 'Run `gm-scriptorium carry <campaign>` to settle it, or edit whichever file is wrong.',
     },
     'config/leftover-settings-file': {
+      since: '0.6.0',
       what: 'Your vault\'s settings are in `_meta/vault-config.yaml`, and `_meta/vault-config.md` is still there. gm-apprentice\'s update leaves that old file behind. It is not read. It is a WARN.',
       action: 'Check that nothing in `_meta/vault-config.md` is missing from `_meta/vault-config.yaml`, then delete the old file.',
     },

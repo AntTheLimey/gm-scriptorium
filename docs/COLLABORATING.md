@@ -122,7 +122,11 @@ and the facade adds these exports:
   `was` or `read: false` reads it from the pin.
 - `stripMovedSettings`: a site config with every key the pin has moved taken out. The pin's own
   `stripSiteKeys` (`lib/settings/move.js`) is not exported, so this rebuilds it from the registry
-  (`movedKeys`, `siteFolderKeys` and the `was` entries). `writeStagedConfig` uses it on a moved vault.
+  (`movedKeys`, `siteFolderKeys` and the `was` entries). `stageConfig` (`src/build/stage.js`) uses it on a
+  moved vault, and on that layout also leaves `outputDir` out of the staged file and hands the output
+  folder to the pin's `build()` as its `outputDirOverride` option instead, so the pin does not warn that
+  the staged file's `outputDir` "moves to `player_site.output`". That option is the pin's own, used by
+  its local preview; it also turns off the vault's build steps, which Scriptorium never runs.
 - `planSettingsCarry` and `applySettingsCarry` (`lib/settings/move.js` `planMove` with `foldSiteFile`,
   and `applyMove`): the carry. Every call passes its own `pinCheck`, so the move never starts a program.
 - `applySettingsChanges` (`lib/settings/write.js` `applyChanges`): sets `player_site.title` and
