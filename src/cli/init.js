@@ -470,8 +470,18 @@ async function runInitCommand(
     // --- Step 4: title ------------------------------------------------
     const jsonPath = path.join(packDir, 'vault.config.json');
     let title;
-    const moved = isMovedVault(vaultAbs);
-    const vaultTitle = moved ? movedVaultTitle(vaultAbs) : null;
+    let moved;
+    let vaultTitle = null;
+    try {
+      moved = isMovedVault(vaultAbs);
+      if (moved) vaultTitle = movedVaultTitle(vaultAbs);
+    } catch (err) {
+      if (err instanceof ScriptoriumError) throw err;
+      throw new VaultUnreachableError(
+        `campaign "${name}": ${path.join(vaultAbs, '_meta', 'vault-config.yaml')} could not be read: ${String(err.message).split('\n')[0]}`,
+        { path: vaultAbs, campaign: name, reason: 'settings-unreadable' },
+      );
+    }
     if (vaultTitle !== null) {
       if (flags.title !== undefined && flags.title !== vaultTitle) {
         throw new ScriptoriumError("this vault's title is set in _meta/vault-config.yaml; change it there");
@@ -528,8 +538,9 @@ async function runInitCommand(
       // the whole composed site config is carried into that file (only what it does not already set).
       let planned = null;
       let machineDir = null;
+      let stripped = null;
       if (moved && missing.some((entry) => entry.rel === 'vault.config.json')) {
-        const stripped = stripEntriesForMovedVault(entries);
+        stripped = stripEntriesForMovedVault(entries);
         entries = stripped.entries;
         planned = planCarry({
           vaultPath: vaultAbs,
@@ -549,28 +560,31 @@ async function runInitCommand(
           }
           machineDir = machine.dir;
         } else {
+          // Nothing to write to the vault's settings; what the carry cannot move still stays in the pack.
+          entries = stripEntriesForMovedVault(scaffoldEntries(vaultAbs, missing, { title, theme }), planned.unmoved.map((u) => u.name)).entries;
           planned = null;
         }
       }
       try {
         if (planned) {
           emit(
-            "This vault keeps its settings in _meta/vault-config.yaml, so init sets the site title, the folder map and the hide lists there. " +
-              'A setting the file already has is kept as it is.',
+            "This vault keeps its settings in _meta/vault-config.yaml, so the note above does not hold for it: init also sets these in that file. " +
+              'Hide lists only gain entries; a title or folder map the file already sets is kept. A copy of the file is kept outside the vault first.',
           );
+          for (const line of planned.lines) emit(`  ${line}`);
         }
         if (!flags.yes) {
           const list = missing.map(displayEntry).join(', ');
-          const also = planned ? " and carry these settings into the vault's settings file" : '';
+          const also = planned ? " and set the settings above in the vault's settings file" : '';
           const proceed = await askYesNo(`Create ${list} in ${packDir}${also}? [Y/n]: `, true);
           if (!proceed) throw abortError();
         }
         if (planned) {
           const done = applyCarry(planned, { machineDir, campaign: name, writePack: false });
-          if (done.unmoved.length > 0) {
-            emit(`not set in _meta/vault-config.yaml, for you to set there: ${done.unmoved.map((u) => u.setting).join(', ')}`);
-          }
           emit(`A copy of _meta/vault-config.yaml as it was is kept at ${done.backups.yaml}`);
+          if (done.unmoved.length > 0) {
+            entries = stripEntriesForMovedVault(scaffoldEntries(vaultAbs, missing, { title, theme }), done.unmoved.map((u) => u.name)).entries;
+          }
         }
       } finally {
         discardCarry(planned);

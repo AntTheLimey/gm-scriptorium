@@ -62,6 +62,14 @@ function copyBadYamlVault(root) {
   return vaultPath;
 }
 
+/** A moved copy of the sample vault whose settings file already sets a site title. */
+function copyTitledMovedVault(root) {
+  const { vaultPath } = moveVaultCopy(SAMPLE, root);
+  const file = path.join(vaultPath, '_meta', 'vault-config.yaml');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('player_site:\n', 'player_site:\n  title: "Typed Title"\n'));
+  return vaultPath;
+}
+
 /** A copy of the sample vault at <root>/v whose publish.mode is one the generator cannot read. */
 function copyBadModeVault(root) {
   const v = path.join(root, 'v');
@@ -152,6 +160,8 @@ const CASES = [
   ['init --new-vault into a folder that is not empty', (r) => (fs.mkdirSync(path.join(`${r}-nv`, 'full'), { recursive: true }), fs.writeFileSync(path.join(`${r}-nv`, 'full', 'a.md'), 'x'), ['init', '--yes', '--name', 'x', '--new-vault', path.join(`${r}-nv`, 'full'), '--system', 'none']), 3, /refusing to create a vault in .*: it is not empty \(it holds a\.md\)/],
   ['init --new-vault into a file', (r) => (fs.writeFileSync(path.join(r, 'afile'), 'x'), ['init', '--yes', '--name', 'x', '--new-vault', path.join(r, 'afile'), '--system', 'none']), 3, /refusing to create a vault in .*afile: it is a file/],
   ['init --new-vault inside an existing vault', (r) => ['init', '--yes', '--name', 'x', '--new-vault', path.join(SAMPLE, 'zz-new'), '--system', 'none'], 3, /it is inside the vault at /],
+  ['init --title that differs from the title in the vault-config.yaml', (r) => ['init', '--yes', '--name', 'x', '--vault', copyTitledMovedVault(r), '--out', path.join(r, 'site'), '--title', 'Other Title'], 1, /^this vault's title is set in _meta\/vault-config\.yaml; change it there$/m],
+  ['init on a vault whose vault-config.yaml is not valid YAML', (r) => ['init', '--yes', '--name', 'x', '--vault', copyBadYamlVault(r), '--out', path.join(r, 'site')], 3, /^campaign "x": .*_meta\/vault-config\.yaml could not be read: /m],
   ['init aborted by closed stdin', (r) => ({ args: ['init', '--name', 'x', '--vault', SAMPLE], input: '' }), 1, /init aborted; nothing written/],
   ['remote show with a malformed config', (r) => (writeCfg(r, 'config_version = [[[\n'), ['remote', 'show']), 3, /config is not valid TOML/],
   ['config add with no name', () => ['config', 'add'], 1, /usage: gm-scriptorium config add/],

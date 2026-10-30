@@ -11,6 +11,7 @@ const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
 const { moveVaultCopy } = require('./helpers/moved-vault');
 const { runCarryCommand } = require('../src/cli/carry');
 const { planCarry, applyCarry, discardCarry } = require('../src/vault/settingscarry');
+const { writeCarriedPack } = require('../src/vault/carrypack');
 const packreplace = require('../src/vault/packreplace');
 const { VaultUnreachableError, ScriptoriumError } = require('../src/util/errors');
 
@@ -570,15 +571,27 @@ test('planCarry writes only its scratch folder and reports the pack as the site 
   });
 });
 
-test('planCarry with a siteConfig object uses it instead of the pack file, and messages still name the pack path', () => {
+test('planCarry with a siteConfig object uses it instead of the pack file, and its lines do not name a pack', () => {
   withScratch((root) => {
     const vault = setup(root);
     const planned = planFor(root, vault, { siteConfig: { excludeSections: ['Only This Section'] }, writePack: false });
     assert.equal(planned.state, 'ready');
     const text = planned.lines.join('\n');
-    assert.ok(text.includes(packOf(vault)), text);
+    assert.deepEqual(planned.lines, ['player_site.hide.sections: adds "Only This Section".']);
+    assert.ok(!text.includes(packOf(vault)), text);
     // The pack file's own hide entry is not in the plan: the object stood in for the file.
     assert.ok(!text.includes('Pack Only Secret'), text);
+  });
+});
+
+test('planCarry with writePack false keeps a setting the vault cannot take in unmoved, and says so without naming a pack', () => {
+  withScratch((root) => {
+    const vault = setup(root);
+    const planned = planFor(root, vault, { siteConfig: { excludeSections: ['Only This Section'], footer: 'Pack footer' }, writePack: false });
+    assert.equal(planned.state, 'ready');
+    assert.deepEqual(planned.unmoved.map((u) => u.name), ['footer']);
+    assert.ok(planned.lines.includes("footer is not set in the vault's settings and init cannot put it there, so it stays in the pack for you to set in _meta/vault-config.yaml."), planned.lines.join('\n'));
+    discardCarry(planned);
   });
 });
 
@@ -599,7 +612,7 @@ test('applyCarry with the default writePack rewrites the pack and reports both b
   withScratch((root) => {
     const vault = setup(root);
     const planned = planFor(root, vault);
-    const done = applyCarry(planned, { machineDir: root, campaign: 't' });
+    const done = applyCarry(planned, { machineDir: root, campaign: 't', packWriter: writeCarriedPack });
     assert.deepEqual(Object.keys(done.backups).sort(), ['pack', 'yaml']);
     assert.ok(done.lines.length > 0);
     assert.equal(backupsIn(root).length, 2);
@@ -615,7 +628,7 @@ test('a backup failure leaves everything unchanged', () => {
     // The machine folder is a file, so no backup folder can be made inside it.
     const notAFolder = path.join(root, 'a-file');
     fs.writeFileSync(notAFolder, 'x');
-    assert.throws(() => applyCarry(planned, { machineDir: notAFolder, campaign: 't' }), /could not back up/);
+    assert.throws(() => applyCarry(planned, { machineDir: notAFolder, campaign: 't', packWriter: writeCarriedPack }), /could not back up/);
     assert.equal(Buffer.compare(fs.readFileSync(yamlOf(vault)), yamlBefore), 0);
     assert.equal(Buffer.compare(fs.readFileSync(packOf(vault)), packBefore), 0);
   });

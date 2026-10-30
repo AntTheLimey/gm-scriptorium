@@ -789,7 +789,7 @@ module.exports = deepFreeze({
 
   'cli-commands': {
     init: {
-      what: 'Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault. The one exception is a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: there init also sets the site title, the folder map and the hide lists in that file, asks first, keeps a copy of the file outside the vault, and leaves alone anything the file already sets.',
+      what: 'Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault. The one exception is a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: there init also sets the site title, the folder map and the hide lists in that file, asks first, keeps a copy of the file outside the vault, and changes nothing else: hide lists only gain entries, and a title or folder map the file already sets is kept.',
     },
     check: {
       what: 'Reads the vault and reports anything that would leak GM-only material or break the site. It changes nothing.',

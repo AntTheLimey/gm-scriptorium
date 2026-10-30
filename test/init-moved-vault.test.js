@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 
 const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
+const { stripEntriesForMovedVault } = require('../src/setup/scaffold');
 const { moveVaultCopy, assertMovedLayout, replaceChecked } = require('./helpers/moved-vault');
 
 const yamlOf = (vault) => path.join(vault, '_meta', 'vault-config.yaml');
@@ -187,4 +188,89 @@ test('init --new-vault still makes the old layout', (t) => {
     assert.ok(!fs.existsSync(path.join(dest, '_meta', 'vault-config.yaml')));
     assert.ok(fs.existsSync(path.join(dest, '_meta', 'scriptorium', 'vault.config.json')));
   });
+});
+
+test('init prints what it will set in the vault settings, before it asks and with --yes', () => {
+  withScratch((root) => {
+    const vault = movedNoPack(root);
+    const res = run(root, initArgs(vault, root));
+    assert.equal(res.code, 0, res.all);
+    assert.ok(res.out.includes('  player_site.title: set to "The Long Lease".'), res.out);
+    assert.ok(res.out.includes('  player_site.hide.folders: adds "_resources".'), res.out);
+    assert.ok(res.out.includes('Hide lists only gain entries; a title or folder map the file already sets is kept.'), res.out);
+    assert.ok(!res.out.includes('vault.config.json: siteTitle'), 'no line about taking settings out of a pack that does not exist');
+  });
+});
+
+test('without --yes the lines come before the question', () => {
+  withScratch((root) => {
+    const vault = movedNoPack(root);
+    const args = ['init', '--name', 'x', '--vault', vault, '--out', path.join(root, 'site'), '--title', 'Chosen Name', '--theme', 'gloam'];
+    const res = run(root, args, { input: 'n\n' });
+    const at = res.out.indexOf('  player_site.title: set to "Chosen Name".');
+    assert.ok(at >= 0 && at < res.out.indexOf('[Y/n]'), res.out);
+  });
+});
+
+test('a yaml folder map differing from init\'s is kept, and the output says so', () => {
+  withScratch((root) => {
+    const vault = movedNoPack(root);
+    const yaml = replaceChecked(
+      fs.readFileSync(yamlOf(vault), 'utf8'),
+      'player_site:\n',
+      'player_site:\n  folder_map:\n    "Characters/NPCs": "characters/npcs"\n',
+    );
+    fs.writeFileSync(yamlOf(vault), yaml);
+    const res = run(root, initArgs(vault, root));
+    assert.equal(res.code, 0, res.all);
+    assert.ok(
+      res.out.includes('but the vault\'s settings set player_site.folder_map to {"Characters/NPCs":"characters/npcs"}; the vault\'s value is kept.'),
+      res.out,
+    );
+    assert.ok(!/Locations/.test(fs.readFileSync(yamlOf(vault), 'utf8').split('folder_map:')[1].split('not_found')[0]), 'the yaml map was not extended');
+  });
+});
+
+test('a yaml with a title and folder map but weaker hide lists gains init\'s hide lists', () => {
+  withScratch((root) => {
+    const vault = movedNoPack(root);
+    let yaml = fs.readFileSync(yamlOf(vault), 'utf8');
+    yaml = replaceChecked(yaml, 'player_site:\n', 'player_site:\n  title: "Typed Title"\n  folder_map:\n    "Characters/NPCs": "characters/npcs"\n');
+    yaml = replaceChecked(yaml, 'folders: ["_meta", "_Templates"]', 'folders: ["_meta"]');
+    yaml = replaceChecked(yaml, 'sections: ["GM Notes", "DM Notes", "Player Notes", "Source References", "Reconciliation Context", "Handoff to Reconcile"]', 'sections: ["GM Notes"]');
+    yaml = replaceChecked(yaml, '"reliability"]\n', '"reliability"]\n    callouts: false\n');
+    fs.writeFileSync(yamlOf(vault), yaml);
+    const res = run(root, initArgs(vault, root));
+    assert.equal(res.code, 0, res.all);
+    const after = fs.readFileSync(yamlOf(vault), 'utf8');
+    for (const f of ['_meta', '_Templates', '_resources']) assert.match(after, new RegExp(`folders: \\[[^\\]]*\\b${f}\\b`), `hide.folders must hold ${f}:\n${after}`);
+    assert.match(after, /sections: \[[^\]]*Handoff to Reconcile/);
+    assert.match(after, /callouts: true/);
+    assert.match(after, /^ {2}title: "?Typed Title"?$/m);
+  });
+});
+
+test('an invalid settings file makes init exit 3 with one plain line and no stack', () => {
+  withScratch((root) => {
+    const vault = movedNoPack(root);
+    fs.appendFileSync(yamlOf(vault), '\nbroken: [\n');
+    const before = fs.readFileSync(yamlOf(vault));
+    const res = run(root, initArgs(vault, root));
+    assert.equal(res.code, 3, res.all);
+    assert.equal(res.err.trim().split('\n').length, 1, res.err);
+    assert.ok(!/\n\s+at /.test(res.err), res.err);
+    assert.match(res.err, /could not be read/);
+    assert.ok(Buffer.compare(before, fs.readFileSync(yamlOf(vault))) === 0);
+    assert.ok(!fs.existsSync(path.join(vault, '_meta', 'scriptorium')));
+  });
+});
+
+test('a setting the vault cannot take stays in the pack when the pack is made', () => {
+  const entries = [{ rel: 'vault.config.json', kind: 'file', data: JSON.stringify({ siteTitle: 'T', folderMap: { A: 'a' }, footer: 'Pack footer', backend: { inbox: false } }) }];
+  const plain = JSON.parse(stripEntriesForMovedVault(entries).entries[0].data);
+  assert.ok(!('siteTitle' in plain) && !('folderMap' in plain), JSON.stringify(plain));
+  const kept = JSON.parse(stripEntriesForMovedVault(entries, ['siteTitle', 'backend.inbox']).entries[0].data);
+  assert.equal(kept.siteTitle, 'T');
+  assert.deepEqual(kept.backend, { inbox: false });
+  assert.ok(!('folderMap' in kept));
 });

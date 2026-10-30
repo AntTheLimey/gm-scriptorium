@@ -223,4 +223,5 @@ module.exports = {
   runFolderMapNotCarried: only('config/folder-map-not-carried'),
   runPackSettingDiffers: only('config/pack-setting-differs'),
   runLeftoverSettingsFile: only('config/leftover-settings-file'),
+  missingEntries,
 };

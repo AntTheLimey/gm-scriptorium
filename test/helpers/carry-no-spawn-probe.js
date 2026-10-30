@@ -20,13 +20,14 @@ for (const name of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execF
 
 const path = require('path');
 const { planCarry, applyCarry } = require('../../src/vault/settingscarry');
+const { writeCarriedPack } = require('../../src/vault/carrypack');
 
 const vault = process.argv[2];
 const machineDir = process.argv[3];
 const planned = planCarry({ vaultPath: vault, campaign: 't', packConfigPath: path.join(vault, '_meta', 'scriptorium', 'vault.config.json') });
 const result = { state: planned.state, blockers: planned.blockers, applied: false, started };
 if (planned.state === 'ready') {
-  applyCarry(planned, { machineDir, campaign: 't' });
+  applyCarry(planned, { machineDir, campaign: 't', packWriter: writeCarriedPack });
   result.applied = true;
 }
 console.log(JSON.stringify(result));

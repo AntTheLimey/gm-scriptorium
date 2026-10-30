@@ -6,12 +6,11 @@ const os = require('os');
 const path = require('path');
 const pinned = require('../generator/pinned');
 const backups = require('../config/backups');
-const packreplace = require('./packreplace');
 const { platformFoldsCase } = require('./exclusions');
 const { ScriptoriumError, VaultUnreachableError } = require('../util/errors');
 const { stripBom } = require('../util/bom');
 const { readSettingsFiles } = require('./publishset');
-const { unheldPackSettings } = require('../checks/carry');
+const { unheldPackSettings, missingEntries } = require('../checks/carry');
 
 /*
  * The carry (rung 3b): folds the settings a campaign pack's vault.config.json still holds into the
@@ -115,6 +114,24 @@ function withoutStaying(line, packPath, staying) {
 }
 
 const showValue = (v) => JSON.stringify(v);
+
+/** What init sets in the vault's settings: the hide entries it lacks, and the title and folder map it does not set. */
+function unheldSetLines(unheld, vaultPath) {
+  const out = [];
+  for (const u of unheld) {
+    if (u.fault.level === 'stop') {
+      if (Array.isArray(u.fault.value)) {
+        const add = missingEntries(u.fault.name, u.fault.value, Array.isArray(u.vaultValue) ? u.vaultValue : [], vaultPath);
+        out.push(`${u.fault.setting}: adds ${add.map((e) => `"${e}"`).join(', ')}.`);
+      } else {
+        out.push(`${u.fault.setting}: set to ${showValue(u.fault.value)}.`);
+      }
+    } else if (['siteTitle', 'folderMap'].includes(u.fault.name) && u.origin !== 'file') {
+      out.push(`${u.fault.setting}: set to ${showValue(u.fault.value)}.`);
+    }
+  }
+  return out;
+}
 
 /** The title and folder map the yaml sets differently from the pack: the vault's value is kept. */
 function differLines(differs) {
@@ -231,8 +248,10 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
   let own;
   let differs;
   let vaultLacks;
+  let unheldAll;
   try {
     const { unheld } = unheldPackSettings(realVault, pack, readSettingsFiles(realVault));
+    unheldAll = unheld;
     const carriedFrom = new Set(carried.map((c) => c.from));
     unmoved = cannotMove(unheld).filter((u) => u.level !== 'stop' && !carriedFrom.has(u.name));
     // siteTitle and folderMap are set by the carry itself: the vault does not set them (they move), or it does,
@@ -262,6 +281,15 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
     return { state: 'nothing', lines: stayLines(unmoved, packConfigPath), blockers: [], plan, internal: null, unmoved };
   }
   internal.differs = differs;
+  if (!writePack) {
+    // init has no pack yet, so the pin's lines about taking settings out of one do not apply: say what is set in the vault's settings.
+    const setLines = unheldSetLines(unheldAll, realVault);
+    const keepLines = differs.map(
+      (d) => `${d.name === 'siteTitle' ? 'The site title' : 'The folder map'} init would set is ${showValue(d.value)}, but the vault's settings set ${d.setting} to ${showValue(d.vaultValue)}; the vault's value is kept.`,
+    );
+    const stay = unmoved.map((u) => `${u.name} is not set in the vault's settings and init cannot put it there, so it stays in the pack for you to set in _meta/vault-config.yaml.`);
+    return { state: 'ready', lines: [...setLines, ...keepLines, ...stay], blockers: [], plan, internal, unmoved };
+  }
   const lines = plan.lines.map((l) => withoutStaying(namingThePack(l, internal), packConfigPath, stayNames));
   const ownLines = own.map((u) => `\`${u.name}\` moves to \`${u.setting}\`.`);
   return { state: 'ready', lines: [...lines, ...ownLines, ...differLines(differs), ...stayLines(unmoved, packConfigPath)], blockers: [], plan, internal, unmoved };
@@ -276,19 +304,24 @@ function discardCarry(planned) {
  * Applies a ready plan. Backs up first; see the order in the file header.
  *
  * @param {{ state: string, plan: object, internal: object }} planned from planCarry
- * @param {{ machineDir: string, campaign: string|null, sleep?: (ms: number) => void, now?: () => number, writePack?: boolean }} opts
- *   `writePack` (default true) must match the planCarry call.
+ * @param {{ machineDir: string, campaign: string|null, sleep?: (ms: number) => void, now?: () => number, writePack?: boolean, packWriter?: Function }} opts
+ *   `writePack` (default true) must match the planCarry call. `packWriter(vaultPath, text, { expectedSha256, campaign, sleep })`
+ *   replaces the pack when `writePack` is true (src/vault/carrypack.js); it is passed in so that init, which
+ *   never overwrites a pack, can load this module without reaching the code that does.
  * @returns {{ lines: string[], backups: { yaml: string, pack?: string }, unmoved: { name: string, setting: string }[] }}
  * @throws {VaultUnreachableError} reason 'carry-blocked': a file changed since the plan; nothing was written
  * @throws {ScriptoriumError} a backup failed (nothing written), the yaml could not be written, or the pack
  *   could not be rewritten after the yaml was
  */
-function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = true } = {}) {
+function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = true, packWriter } = {}) {
   const internal = planned && planned.internal;
   if (!internal || planned.state !== 'ready') {
     throw new ScriptoriumError('applyCarry needs a ready plan from planCarry (programming error)', { campaign });
   }
   const { vaultPath, packConfigPath, scratchDir, scratchFile } = internal;
+  if (writePack && typeof packWriter !== 'function') {
+    throw new ScriptoriumError('applyCarry: a carry that rewrites the pack needs a packWriter (programming error)', { campaign });
+  }
   if (writePack !== internal.writePack) {
     throw new ScriptoriumError('applyCarry: writePack must be the value planCarry was given (programming error)', { campaign });
   }
@@ -296,7 +329,7 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     const yamlPath = path.join(vaultPath, ...YAML_REL);
     const stale = (what) =>
       new VaultUnreachableError(
-        `${what} changed since the carry was planned; nothing was written. Run "gm-scriptorium carry" again.`,
+        `${what} changed since the carry was planned; nothing was written. ${writePack ? 'Run "gm-scriptorium carry" again.' : 'Run the command again.'}`,
         { path: packConfigPath, campaign, reason: 'carry-blocked' },
       );
 
@@ -375,7 +408,7 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
           if (value !== undefined) setAtPath(left, segs, value);
         }
         const text = `${JSON.stringify(left, null, 2)}\n`;
-        packreplace.replacePackFile(vaultPath, 'vault.config.json', text, { expectedSha256: internal.packSha, campaign, sleep });
+        packWriter(vaultPath, text, { expectedSha256: internal.packSha, campaign, sleep });
       } catch (err) {
         const why = String(err.code || err.message).replace(/\s+/g, ' ');
         if (ownFailure) {
@@ -394,6 +427,13 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
         );
       }
       lines.push(`${packConfigPath} was rewritten without the settings that moved.`);
+    }
+    if (ownFailure && !writePack) {
+      throw new VaultUnreachableError(
+        `The site title and folder map could not be set in the vault's settings file (${ownFailure}). Nothing else was written. ` +
+          `Run the command again once the file can be written. ${backupText}`,
+        { path: yamlPath, campaign, reason: 'carry-blocked' },
+      );
     }
     if (ownFailure) {
       throw new VaultUnreachableError(

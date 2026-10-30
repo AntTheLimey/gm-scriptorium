@@ -182,14 +182,29 @@ function scaffoldEntries(vaultAbs, missing, { title, theme }) {
  * the carry puts into the vault's settings file. The other entries come back as they were.
  *
  * @param {{ rel: string, kind: string, data?: string }[]} entries from scaffoldEntries
+ * @param {string[]} [keep] dotted names of settings to leave in the pack after all
  * @returns {{ entries: object[], siteConfig: object|null }} siteConfig is null when no entry is the pack's file
  */
-function stripEntriesForMovedVault(entries) {
+function stripEntriesForMovedVault(entries, keep = []) {
   let siteConfig = null;
   const out = entries.map((entry) => {
     if (entry.rel !== 'vault.config.json' || entry.kind !== 'file') return entry;
     siteConfig = JSON.parse(entry.data);
-    return { ...entry, data: `${JSON.stringify(pinned.stripMovedSettings(siteConfig).config, null, 2)}\n` };
+    const left = pinned.stripMovedSettings(siteConfig).config;
+    // A setting the vault's settings cannot take (the carry could not move it) stays in the pack, as the carry command leaves it.
+    for (const name of keep) {
+      const segs = name.split('.');
+      let from = siteConfig;
+      for (const seg of segs) from = from && typeof from === 'object' ? from[seg] : undefined;
+      if (from === undefined) continue;
+      let at = left;
+      for (const seg of segs.slice(0, -1)) {
+        if (!at[seg] || typeof at[seg] !== 'object') at[seg] = {};
+        at = at[seg];
+      }
+      at[segs[segs.length - 1]] = structuredClone(from);
+    }
+    return { ...entry, data: `${JSON.stringify(left, null, 2)}\n` };
   });
   return { entries: out, siteConfig };
 }

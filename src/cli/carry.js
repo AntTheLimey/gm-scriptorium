@@ -5,6 +5,7 @@ const { resolveCampaignContext } = require('./args');
 const { resolveVaultSite } = require('./check');
 const { createPrompter } = require('./prompt');
 const { planCarry, applyCarry, discardCarry } = require('../vault/settingscarry');
+const { writeCarriedPack } = require('../vault/carrypack');
 const { resolveMachineDir } = require('../config/machinedir');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { ScriptoriumError, VaultUnreachableError } = require('../util/errors');
@@ -70,7 +71,7 @@ async function runCarryCommand(flags, positional = [], { input = process.stdin, 
       }
     }
 
-    const done = applyCarry(planned, { machineDir: machine.dir, campaign: ctxInfo.campaign, now });
+    const done = applyCarry(planned, { machineDir: machine.dir, campaign: ctxInfo.campaign, now, packWriter: writeCarriedPack });
     for (const line of done.lines) say(line);
     say('Backups of both files as they were:');
     say(`  ${done.backups.yaml}`);
