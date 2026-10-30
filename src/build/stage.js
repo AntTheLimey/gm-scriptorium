@@ -12,7 +12,7 @@ const pinned = require('../generator/pinned');
  *   - backend detection: wrangler.toml, functions/api/request.js,
  *     functions/api/loadout.js (pub/lib/build.js:279, :1339-1340, pub/lib/backend-flags.js:12-29)
  * Scriptorium's staged config lives in a staging root that is NOT the
- * user's site dir (src/build/stage.js's writeStagedConfig, unchanged), so
+ * user's site dir (src/build/stage.js's stageConfig), so
  * without mirroring these, the pin's copyOverridesCSS and its
  * hasRealKvId/detectInbox/detectStatusBar would silently see an empty configDir and drop them.
  * This list is a change-detector target: test/build-site-mirror.test.js
@@ -103,18 +103,4 @@ function stageConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut) {
   return { configPath, outputDirOverride: moved ? stagingOut : null };
 }
 
-/**
- * stageConfig's file alone: its absolute path. The output folder it does not write on a moved vault
- * is in stageConfig's `outputDirOverride`; a build must use stageConfig.
- *
- * @param {object} userJsonConfig
- * @param {string} vaultPath
- * @param {string} stagingRoot
- * @param {string} stagingOut
- * @returns {string}
- */
-function writeStagedConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut) {
-  return stageConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut).configPath;
-}
-
-module.exports = { stageConfig, writeStagedConfig, SITE_RELATIVE_INPUTS, mirrorSiteInputs };
+module.exports = { stageConfig, SITE_RELATIVE_INPUTS, mirrorSiteInputs };

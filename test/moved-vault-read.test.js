@@ -23,7 +23,7 @@ const { defaultTitleFor } = require('../src/setup/scaffold');
 const { paletteScheme, runThemeSchemeMismatch } = require('../src/checks/themescheme');
 const { runSettingsFault } = require('../src/checks/configdiv');
 const { contextFromSite } = require('../src/cli/check');
-const { writeStagedConfig, stageConfig } = require('../src/build/stage');
+const { stageConfig } = require('../src/build/stage');
 const { VaultUnreachableError } = require('../src/util/errors');
 const { moveVaultCopy } = require('./helpers/moved-vault');
 
@@ -116,7 +116,7 @@ test('the staged vault.config.json on a moved vault carries none of the keys the
     };
     const staging = path.join(root, 'staging');
     const out = path.join(root, 'out');
-    const file = writeStagedConfig(raw, vault, staging, out);
+    const file = stageConfig(raw, vault, staging, out).configPath;
     const staged = JSON.parse(fs.readFileSync(file, 'utf8'));
     for (const key of ['siteTitle', 'folderMap', 'excludeDirs', 'excludeSections', 'excludeCallouts', 'landingTagline', 'attachmentsDir']) {
       assert.equal(Object.prototype.hasOwnProperty.call(staged, key), false, `${key} must not reach the generator`);
@@ -178,7 +178,7 @@ test('a moved vault\'s staged config keeps the pack\'s site-folder keys the gene
 test('the staged config of a legacy vault is unchanged: every key verbatim', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-moved-read-'));
   try {
-    const file = writeStagedConfig({ siteTitle: 'Old', folderMap: { a: 'b' } }, SAMPLE, path.join(root, 's'), path.join(root, 'o'));
+    const file = stageConfig({ siteTitle: 'Old', folderMap: { a: 'b' } }, SAMPLE, path.join(root, 's'), path.join(root, 'o')).configPath;
     assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { siteTitle: 'Old', folderMap: { a: 'b' }, vaultPath: SAMPLE, outputDir: path.join(root, 'o') });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
