@@ -537,3 +537,36 @@ test('item 4: a pack site-folder key equal to its built-in value, or outputDir, 
   const { findings } = carriedFindings({ preserveDirs: [], outputDir: 'site-out' });
   assert.deepEqual(carryOf(findings), []);
 });
+
+/** A carried vault whose yaml sets player_site.url (the pin's own writer, test-only), with this pack. */
+function withYamlUrl(pack, url) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-carry-'));
+  try {
+    const { vaultPath } = moveVaultCopy(SAMPLE, root, { inVaultPack: true });
+    require('gm-apprentice-publish/lib/settings/write').applyChanges(vaultPath, [{ op: 'set', name: 'player_site.url', value: url }]);
+    const packFile = path.join(vaultPath, '_meta', 'scriptorium', 'vault.config.json');
+    fs.writeFileSync(packFile, JSON.stringify(pack, null, 2));
+    const site = { siteSource: 'pack', siteConfigPath: packFile, siteDir: path.dirname(packFile), packShadowed: null };
+    const info = contextFromSite({ campaign: 'x', vault: vaultPath }, vaultPath, site);
+    const ctx = buildCheckContext({
+      campaign: 'x', vaultPath: info.vaultPath, jsonConfig: info.jsonConfig, rawSiteConfig: info.rawSiteConfig,
+      settingsLayout: info.settingsLayout, packConfigPath: packFile,
+    });
+    return runChecks(ctx);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test('R2: a pack siteUrl unlike the yaml\'s player_site.url is one differs warning: the vault\'s value is used', () => {
+  const found = carryOf(withYamlUrl({ siteUrl: 'https://example.org/pack/' }, 'https://example.org/yaml/'));
+  assert.deepEqual(found.map((f) => [f.id, f.severity, f.data.packKey]), [['config/pack-setting-differs', 'warn', 'siteUrl']]);
+  assert.equal(
+    found[0].message,
+    'siteUrl in the pack is "https://example.org/pack/", but the vault\'s settings set player_site.url to "https://example.org/yaml/"; the vault\'s value is used. Run "gm-scriptorium carry x" to move it into the vault\'s settings.',
+  );
+});
+
+test('R2: a pack siteUrl equal to the yaml\'s player_site.url gives no warning', () => {
+  assert.deepEqual(carryOf(withYamlUrl({ siteUrl: 'https://example.org/same/' }, 'https://example.org/same/')), []);
+});

@@ -1117,7 +1117,7 @@ module.exports = deepFreeze({
     },
     'config/pack-setting-differs': {
       since: '0.6.0',
-      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, and both it and the campaign pack\'s `vault.config.json` set the same thing, to different values. The vault\'s value is the one the site uses. The message shows both.',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, and both it and the campaign pack\'s `vault.config.json` set the same thing, to different values. The vault\'s value is the one the site uses. The message shows both. That includes the site folder\'s own keys, such as `siteUrl` against `player_site.url`.',
       action: 'Run `gm-scriptorium carry <campaign>` to settle it, or edit whichever file is wrong.',
     },
     'config/leftover-settings-file': {

@@ -268,7 +268,7 @@ function unheldPackSettings(vaultPath, packConfig, files) {
     return unreadable ? unreadable.value : undefined;
   };
   const folderMap = { origin: settings.origins[FOLDER_MAP], shown: settings.origins[FOLDER_MAP] === 'fault' ? shownOf(FOLDER_MAP) : undefined };
-  return { faults, unheld, origins: settings.origins, folderMap };
+  return { faults, unheld, origins: settings.origins, values: settings.values, folderMap };
 }
 
 /**
@@ -328,9 +328,10 @@ function computeCarryFindings(ctx) {
   let faults;
   let unheld;
   let origins;
+  let values;
   let folderMap;
   try {
-    ({ faults, unheld, origins, folderMap } = unheldPackSettings(ctx.vaultPath, ctx.rawSiteConfig, files));
+    ({ faults, unheld, origins, values, folderMap } = unheldPackSettings(ctx.vaultPath, ctx.rawSiteConfig, files));
   } catch {
     // A settings file the pin cannot parse is reported where it is read (the build stops on the
     // pin's own error); there are no resolved values here to compare the pack with.
@@ -443,6 +444,21 @@ function computeCarryFindings(ctx) {
   // business (the build hands the output folder over directly); a value equal to the built-in one says nothing.
   for (const { key, name, default: builtIn } of pinned.siteFolderKeys()) {
     if (key === 'outputDir') continue;
+    // Both files set it, differently, as the pin's own comparison judges (its 'dropped' fault with
+    // siteDiffers): the vault's value is used, as for every other setting both files set.
+    const differs = faults.find((f) => f.kind === 'dropped' && f.source === 'site' && f.siteDiffers && f.name === key);
+    if (differs) {
+      findings.push(createFinding({
+        id: 'config/pack-setting-differs',
+        severity: 'warn',
+        category: 'config',
+        campaign: ctx.campaign,
+        path: null,
+        message: `${key} in ${file} is ${show(differs.value)}, but the vault's settings set ${name} to ${show(valueAt(values, name))}; the vault's value is used. ${hint}`,
+        data: { packKey: key, setting: name },
+      }));
+      continue;
+    }
     const value = ctx.rawSiteConfig[key];
     if (value === undefined || value === null || isDeepStrictEqual(value, builtIn) || vaultSets(origins[name])) continue;
     findings.push(createFinding({
