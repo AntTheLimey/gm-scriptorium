@@ -1107,7 +1107,7 @@ module.exports = deepFreeze({
     },
     'config/folder-map-not-carried': {
       since: '0.6.0',
-      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but they set no folder map, and the campaign pack\'s `vault.config.json` still has one. The generator does not read the pack\'s folder map, so it would map no folder and publish almost nothing, with no error. It is an ERROR so that a build cannot replace your players\' site with an empty one, and a build that skips the check, or overrides it, refuses too, with exit 3. If the vault\'s settings already hold a folder map, this is not reported.',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but they set no folder map, and the campaign pack\'s `vault.config.json` still has one. The generator does not read the pack\'s folder map, so it would map no folder and publish almost nothing, with no error. It is an ERROR so that a build cannot replace your players\' site with an empty one, and a build that skips the check, or overrides it, refuses too, with exit 3. If the vault\'s settings already hold a folder map, this is not reported, unless the generator cannot read it: then the message says to fix `player_site.folder_map` in the yaml, because the carry keeps a value the vault\'s settings hold.',
       action: 'Run `gm-scriptorium carry <campaign>` to move the folder map into the vault\'s settings, or set `player_site.folder_map` in `_meta/vault-config.yaml` yourself. When the campaign uses a `site_config`, or a pack outside the vault, the carry cannot rewrite that file and the message says to move it by hand.',
     },
     'config/pack-setting-differs': {

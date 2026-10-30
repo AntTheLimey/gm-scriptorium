@@ -211,3 +211,21 @@ test('a campaign whose site config is not the pack in the vault: the line says t
     assert.ok(!fs.existsSync(f.site));
   });
 });
+
+test('moved, with a yaml folder map the generator cannot read: build --no-check refuses with exit 3 and says to fix the yaml', () => {
+  withScratch((root) => {
+    const f = fixture(root, 'new', {}, { yamlMap: false });
+    const yaml = path.join(f.vault, '_meta', 'vault-config.yaml');
+    const text = fs.readFileSync(yaml, 'utf8');
+    assert.ok(text.includes('player_site:\n'));
+    fs.writeFileSync(yaml, text.replace('player_site:\n', 'player_site:\n  folder_map: "not a map"\n'));
+    const res = run(root, ['build', '--no-check']);
+    assert.equal(res.code, 3, res.all);
+    const line =
+      `campaign "t": ${f.pack} still holds settings that _meta/vault-config.yaml does not, and the build no longer reads them there: ` +
+      'folderMap (player_site.folder_map in _meta/vault-config.yaml is "not a map", which cannot be read). ' +
+      'Fix player_site.folder_map in _meta/vault-config.yaml; the carry leaves it as it is. Nothing was written.';
+    assert.ok(res.all.split('\n').includes(line), res.all);
+    assert.ok(!fs.existsSync(f.site));
+  });
+});

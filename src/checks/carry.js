@@ -57,9 +57,12 @@ function isVaultPack(vaultPath, packConfigPath) {
   return fold(realOrResolved(packConfigPath)) === fold(expected);
 }
 
+/** The carry can reach this site config: it is the pack in the vault, or the context does not say which file it is. */
+const carryReaches = (vaultPath, packConfigPath) => !packConfigPath || isVaultPack(vaultPath, packConfigPath);
+
 /** What to do about one pack setting the vault's settings lack: the carry, or a hand edit when the carry cannot reach the file. */
 function carryHint(campaign, vaultPath, packConfigPath) {
-  if (vaultPath && !isVaultPack(vaultPath, packConfigPath)) {
+  if (!carryReaches(vaultPath, packConfigPath)) {
     return 'Move it into _meta/vault-config.yaml by hand: the carry only rewrites the pack in the vault.';
   }
   return `Run "gm-scriptorium carry ${campaign}" to move it into the vault's settings.`;
@@ -157,7 +160,8 @@ function carryFindings(ctx) {
  * @param {string} vaultPath
  * @param {object} packConfig the pack as read (vault.config.json content)
  * @param {{ md: string|null, yaml: string|null }} files the vault's settings files
- * @returns {{ faults: object[], unheld: { fault: object, vaultValue: *, origin: string }[] }}
+ * @returns {{ faults: object[], unheld: { fault: object, vaultValue: *, origin: string, vaultShown?: * }[] }} `vaultShown`,
+ *   only for origin 'fault': the value as the vault's settings file wrote it, which the pin cannot read
  * @throws a settings file the pin cannot parse
  */
 function unheldPackSettings(vaultPath, packConfig, files) {
@@ -169,7 +173,13 @@ function unheldPackSettings(vaultPath, packConfig, files) {
     if (pinIgnores(fault)) continue;
     const vaultValue = valueAt(settings.values, fault.setting);
     if (isHeldByVault(fault.name, fault.value, vaultValue, vaultPath)) continue;
-    unheld.push({ fault, vaultValue, origin: settings.origins[fault.setting] });
+    const origin = settings.origins[fault.setting];
+    const entry = { fault, vaultValue, origin };
+    if (origin === 'fault') {
+      const unreadable = faults.find((f) => f.kind === 'not-allowed' && f.setting === fault.setting && f.source !== 'site');
+      entry.vaultShown = unreadable ? unreadable.value : undefined;
+    }
+    unheld.push(entry);
   }
   return { faults, unheld };
 }
@@ -185,8 +195,13 @@ function unheldPackSettings(vaultPath, packConfig, files) {
  * @returns {{ fault: object, vaultValue: *, origin: string }[]}
  */
 function buildBlockers(unheld) {
-  return unheld.filter((u) => u.fault.level === 'stop' || (u.fault.name === 'folderMap' && !vaultSets(u.origin)));
+  // A folder map the vault's settings hold but the pin cannot read maps no folder either.
+  return unheld.filter((u) => u.fault.level === 'stop' || (u.fault.name === 'folderMap' && u.origin !== 'file'));
 }
+
+/** A folder map whose vault value the pin cannot read: the carry keeps it, so only a fix in the yaml helps. */
+const unreadableMap = (u) => u.fault.name === 'folderMap' && u.fault.level !== 'stop' && u.origin === 'fault';
+const fixYaml = (setting) => `Fix ${setting} in _meta/vault-config.yaml; the carry leaves it as it is.`;
 
 /**
  * The one line `build` refuses with: the pack's path, each entry the vault's settings lack, and what
@@ -196,7 +211,9 @@ function buildBlockers(unheld) {
  * @returns {string}
  */
 function packNotCarriedMessage({ campaign, vaultPath, packConfigPath, blockers }) {
-  const named = blockers.map(({ fault, vaultValue }) => {
+  const named = blockers.map((u) => {
+    const { fault, vaultValue } = u;
+    if (unreadableMap(u)) return `${fault.name} (${fault.setting} in _meta/vault-config.yaml is ${show(u.vaultShown)}, which cannot be read)`;
     if (fault.name === 'folderMap' && fault.level !== 'stop') return fault.name;
     if (Array.isArray(fault.value)) {
       const lacks = missingEntries(fault.name, fault.value, Array.isArray(vaultValue) ? vaultValue : [], vaultPath).map(String);
@@ -204,12 +221,17 @@ function packNotCarriedMessage({ campaign, vaultPath, packConfigPath, blockers }
     }
     return `${fault.name} (${show(fault.value)})`;
   });
-  const todo = isVaultPack(vaultPath, packConfigPath)
-    ? `Run "gm-scriptorium carry ${campaign}" to move them into _meta/vault-config.yaml.`
-    : 'Move them into _meta/vault-config.yaml by hand: the carry only rewrites the pack in the vault.';
+  const todo = [];
+  if (blockers.some((u) => !unreadableMap(u))) {
+    todo.push(isVaultPack(vaultPath, packConfigPath)
+      ? `Run "gm-scriptorium carry ${campaign}" to move them into _meta/vault-config.yaml.`
+      : 'Move them into _meta/vault-config.yaml by hand: the carry only rewrites the pack in the vault.');
+  }
+  const unreadable = blockers.find(unreadableMap);
+  if (unreadable) todo.push(fixYaml(unreadable.fault.setting));
   return (
     `campaign "${campaign}": ${packConfigPath} still holds settings that _meta/vault-config.yaml does not, ` +
-    `and the build no longer reads them there: ${named.join(', ')}. ${todo} Nothing was written.`
+    `and the build no longer reads them there: ${named.join(', ')}. ${todo.join(' ')} Nothing was written.`
   );
 }
 
@@ -225,6 +247,11 @@ function computeCarryFindings(ctx) {
     // pin's own error); there are no resolved values here to compare the pack with.
     return [];
   }
+  // A campaign on site_config, or on a pack outside the vault, holds its settings in a file the carry
+  // does not rewrite: name that file for what it is, and say to move the setting by hand.
+  const reached = carryReaches(ctx.vaultPath, ctx.packConfigPath);
+  const file = reached ? 'the pack' : 'the site config';
+  const hint = carryHint(ctx.campaign, ctx.vaultPath, ctx.packConfigPath);
   const findings = [];
   for (const fault of faults) {
     // The pin's own "dropped" fault for the old settings page (setting null; a dropped folder entry has one).
@@ -240,7 +267,7 @@ function computeCarryFindings(ctx) {
       }));
     }
   }
-  for (const { fault, vaultValue, origin } of unheld) {
+  for (const { fault, vaultValue, origin, vaultShown } of unheld) {
     const base = { category: 'config', campaign: ctx.campaign, path: null };
     const data = { packKey: fault.name, setting: fault.setting };
     if (fault.level === 'stop') {
@@ -254,15 +281,33 @@ function computeCarryFindings(ctx) {
         ...base,
         id: 'config/pack-hiding-not-carried',
         severity: 'error',
-        message: `${fault.name} in the pack hides more than the vault's settings do (${fault.setting}), and the build no longer reads the pack, so ${what}. ${carryHint(ctx.campaign)}`,
+        message: `${fault.name} in ${file} hides more than the vault's settings do (${fault.setting}), and the build no longer reads ${file}, so ${what}. ${hint}`,
         data: { ...data, entries },
+      }));
+    } else if (fault.name === 'folderMap' && origin === 'fault') {
+      // The vault's settings hold a folder map the pin cannot read: the build maps no folder, and the carry
+      // keeps the vault's value, so only a fix in the yaml helps.
+      findings.push(createFinding({
+        ...base,
+        id: 'config/folder-map-not-carried',
+        severity: 'error',
+        message: `${fault.setting} in _meta/vault-config.yaml is ${show(vaultShown)}, which cannot be read, so the build would publish none of the mapped folders. The folder map in ${file} is not read either. ${fixYaml(fault.setting)}`,
+        data,
+      }));
+    } else if (origin === 'fault') {
+      findings.push(createFinding({
+        ...base,
+        id: 'config/pack-setting-differs',
+        severity: 'warn',
+        message: `${fault.name} in ${file} is ${show(fault.value)}, but the vault's settings set ${fault.setting} to ${show(vaultShown)}, which cannot be read. The carry leaves it as it is: fix ${fault.setting} in _meta/vault-config.yaml.`,
+        data,
       }));
     } else if (origin === 'file') {
       findings.push(createFinding({
         ...base,
         id: 'config/pack-setting-differs',
         severity: 'warn',
-        message: `${fault.name} in the pack is ${show(fault.value)}, but the vault's settings set ${fault.setting} to ${show(vaultValue)}; the vault's value is used. ${carryHint(ctx.campaign)}`,
+        message: `${fault.name} in ${file} is ${show(fault.value)}, but the vault's settings set ${fault.setting} to ${show(vaultValue)}; the vault's value is used. ${hint}`,
         data,
       }));
     } else if (fault.name === 'folderMap') {
@@ -272,7 +317,9 @@ function computeCarryFindings(ctx) {
         ...base,
         id: 'config/folder-map-not-carried',
         severity: 'error',
-        message: `The folder map is still only in the pack (${ctx.packConfigPath || 'its vault.config.json'}), so the build would publish none of the mapped folders. Run "gm-scriptorium carry ${ctx.campaign}" to move it into _meta/vault-config.yaml.`,
+        message: `The folder map is still only in ${file} (${ctx.packConfigPath || 'its vault.config.json'}), so the build would publish none of the mapped folders. ${
+          reached ? `Run "gm-scriptorium carry ${ctx.campaign}" to move it into _meta/vault-config.yaml.` : hint
+        }`,
         data,
       }));
     } else {
@@ -280,7 +327,7 @@ function computeCarryFindings(ctx) {
         ...base,
         id: 'config/pack-setting-not-carried',
         severity: 'warn',
-        message: `${fault.name} in the pack is ${show(fault.value)}, but the vault's settings do not set ${fault.setting}, so the pack's value is not used. ${carryHint(ctx.campaign)}`,
+        message: `${fault.name} in ${file} is ${show(fault.value)}, but the vault's settings do not set ${fault.setting}, so ${file === 'the pack' ? "the pack's" : "the site config's"} value is not used. ${hint}`,
         data,
       }));
     }

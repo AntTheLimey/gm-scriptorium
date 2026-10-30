@@ -134,17 +134,51 @@ test('a pack folder map when the yaml has none is one folder-map error, and not 
   );
 });
 
-test('the folder-map error names the pack file when the context knows it', () => {
+test('the folder-map error names the pack file when the context knows it, and names the carry for the pack in the vault', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-carry-'));
   try {
     const { vaultPath } = moveVaultCopy(SAMPLE, root);
-    const ctx = { ...contextOf(vaultPath, root, { searchEnabled: true, folderMap: { Places: 'places' } }), packConfigPath: '/some/pack/vault.config.json' };
+    const inVault = path.join(vaultPath, '_meta', 'scriptorium', 'vault.config.json');
+    const ctx = { ...contextOf(vaultPath, root, { searchEnabled: true, folderMap: { Places: 'places' } }), packConfigPath: inVault };
     const found = runChecks(ctx).filter((f) => f.id === 'config/folder-map-not-carried');
     assert.equal(found.length, 1);
     assert.equal(
       found[0].message,
-      'The folder map is still only in the pack (/some/pack/vault.config.json), so the build would publish none of the mapped folders. Run "gm-scriptorium carry x" to move it into _meta/vault-config.yaml.',
+      `The folder map is still only in the pack (${inVault}), so the build would publish none of the mapped folders. Run "gm-scriptorium carry x" to move it into _meta/vault-config.yaml.`,
     );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a site config that is not the pack in the vault: every carry finding says to move the setting by hand, and calls it the site config', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-carry-'));
+  try {
+    const { vaultPath } = moveVaultCopy(SAMPLE, root);
+    // Test-only: the pin's own writer gives the yaml a title for the pack's to differ from.
+    require('gm-apprentice-publish/lib/settings/write').applyChanges(vaultPath, [{ op: 'set', name: 'player_site.title', value: 'Vault Title' }]);
+    const outside = '/some/site/vault.config.json';
+    const ctx = {
+      ...contextOf(vaultPath, root, {
+        footer: 'Pack footer',
+        siteTitle: 'Other Title',
+        folderMap: { Places: 'places' },
+        excludeSections: ['GM Notes', 'Pack Only Secret'],
+      }),
+      packConfigPath: outside,
+    };
+    const byId = Object.fromEntries(carryOf(runChecks(ctx)).map((f) => [`${f.id} ${f.data.packKey}`, f.message]));
+    const HAND = 'Move it into _meta/vault-config.yaml by hand: the carry only rewrites the pack in the vault.';
+    assert.deepEqual(byId, {
+      'config/folder-map-not-carried folderMap':
+        `The folder map is still only in the site config (${outside}), so the build would publish none of the mapped folders. ${HAND}`,
+      'config/pack-hiding-not-carried excludeSections':
+        `excludeSections in the site config hides more than the vault's settings do (player_site.hide.sections), and the build no longer reads the site config, so "Pack Only Secret" would be published. ${HAND}`,
+      'config/pack-setting-not-carried footer':
+        `footer in the site config is "Pack footer", but the vault's settings do not set player_site.footer, so the site config's value is not used. ${HAND}`,
+      'config/pack-setting-differs siteTitle':
+        `siteTitle in the site config is "Other Title", but the vault's settings set player_site.title to "Vault Title"; the vault's value is used. ${HAND}`,
+    });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -347,4 +381,36 @@ test('settingEntry gives the registry entry, whose old site name for the tagline
   const entry = pinned.settingEntry('player_site.theme.tagline');
   const was = entry.was.find((w) => w.in === 'site' && w.name === 'landingTagline');
   assert.equal(was.read, false);
+});
+
+/** Writes a value the pin cannot read into the moved yaml, under player_site. */
+const unreadableYaml = (line) => (vault) => {
+  const file = path.join(vault, '_meta', 'vault-config.yaml');
+  const text = fs.readFileSync(file, 'utf8');
+  assert.ok(text.includes('player_site:\n'));
+  fs.writeFileSync(file, text.replace('player_site:\n', `player_site:\n${line}\n`));
+};
+
+test('a yaml folder map the pin cannot read, with a pack folder map: one error that says to fix the yaml, not to carry', () => {
+  const { findings, ctx } = findingsFor({ folderMap: { Places: 'places' } }, { before: unreadableYaml('  folder_map: "not a map"') });
+  assert.deepEqual(carryOf(findings).map((f) => f.id), ['config/folder-map-not-carried']);
+  const found = findings.find((f) => f.id === 'config/folder-map-not-carried');
+  assert.equal(found.severity, 'error');
+  assert.equal(
+    found.message,
+    'player_site.folder_map in _meta/vault-config.yaml is "not a map", which cannot be read, so the build would publish none of the mapped folders. ' +
+      'The folder map in the pack is not read either. Fix player_site.folder_map in _meta/vault-config.yaml; the carry leaves it as it is.',
+  );
+  assert.ok(ctx);
+});
+
+test('a yaml title the pin cannot read, with a pack title: a warning that names the yaml value and keeps it', () => {
+  const { findings } = findingsFor({ siteTitle: 'Pack Title' }, { before: unreadableYaml('  title: ["a", "b"]') });
+  const found = carryOf(findings).filter((f) => f.data.packKey === 'siteTitle');
+  assert.deepEqual(found.map((f) => [f.id, f.severity]), [['config/pack-setting-differs', 'warn']]);
+  assert.equal(
+    found[0].message,
+    'siteTitle in the pack is "Pack Title", but the vault\'s settings set player_site.title to ["a","b"], which cannot be read. ' +
+      'The carry leaves it as it is: fix player_site.title in _meta/vault-config.yaml.',
+  );
 });
