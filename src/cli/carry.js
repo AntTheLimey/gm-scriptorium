@@ -76,9 +76,10 @@ async function runCarryCommand(flags, positional = [], { input = process.stdin, 
     // file", is not printed a second time.
     const printed = new Set(planned.lines);
     for (const line of done.lines) if (!printed.has(line)) say(line);
-    say('Backups of both files as they were:');
+    say('Backups of the files as they were:');
     say(`  ${done.backups.yaml}`);
     if (done.backups.pack) say(`  ${done.backups.pack}`);
+    if (done.backups.md) say(`  ${done.backups.md} (the leftover _meta/vault-config.md, which the carry removed)`);
     return { exitCode: EXIT_CODES.OK };
   } finally {
     // Removes the scratch folder when the plan was not applied; applyCarry has already done so otherwise.

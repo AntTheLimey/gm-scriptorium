@@ -33,7 +33,8 @@ const { unheldPackSettings, missingEntries, vaultSets } = require('../checks/car
  *   - any other setting the vault's settings do not hold afterwards stays in the pack, is named in the plan,
  *     and `check` keeps reporting it. It is the GM's to put in _meta/vault-config.yaml.
  *
- * Order of an apply: back up the yaml and the pack (outside the vault, in the per-machine folder), check
+ * Order of an apply: back up the yaml and the pack (outside the vault, in the per-machine folder), and the
+ * leftover _meta/vault-config.md when the pin's plan removes it as redundant, check
  * the pack is as planned, apply the pin's plan (the yaml is written here), rewrite the pack. A failure
  * before the yaml is written changes nothing. A failure of the last step leaves the yaml holding every
  * carried value, so `check` is satisfied; the pack just still holds its old copies.
@@ -321,7 +322,8 @@ function discardCarry(planned) {
  *   `writePack` (default true) must match the planCarry call. `packWriter(vaultPath, text, { expectedSha256, campaign, sleep })`
  *   replaces the pack when `writePack` is true (src/vault/carrypack.js); it is passed in so that init, which
  *   never overwrites a pack, can load this module without reaching the code that does.
- * @returns {{ lines: string[], backups: { yaml: string, pack?: string }, unmoved: { name: string, setting: string }[] }}
+ * @returns {{ lines: string[], backups: { yaml: string, pack?: string, md?: string }, unmoved: { name: string, setting: string }[] }}
+ *   `backups.md`: the leftover _meta/vault-config.md, when the pin's plan removed it
  * @throws {VaultUnreachableError} reason 'carry-blocked': a file changed since the plan; nothing was written
  * @throws {ScriptoriumError} a backup failed (nothing written), the yaml could not be written, or the pack
  *   could not be rewritten after the yaml was
@@ -360,6 +362,12 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
       done.pack = backups.writeBackup({ ...common, bytes: current, file: 'vault.config.json' }).path;
     }
     done.yaml = backups.writeBackup({ ...common, bytes: fs.readFileSync(yamlPath), file: 'vault-config.yaml' }).path;
+    // The pin's apply removes a leftover _meta/vault-config.md it judges to hold nothing the yaml lacks.
+    const mdPath = path.join(vaultPath, '_meta', 'vault-config.md');
+    const removes = ((planned.plan.files && planned.plan.files.remove) || []).map((f) => path.resolve(f));
+    if (removes.includes(path.resolve(mdPath))) {
+      done.md = backups.writeBackup({ ...common, bytes: fs.readFileSync(mdPath), file: 'vault-config.md' }).path;
+    }
 
     // 2. The pin's own apply: writes the yaml and the scratch copy of the pack.
     let applied;
@@ -404,7 +412,8 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
       }
     }
     const ownNames = () => `${own.map((u) => u.name).join(' and ')} ${own.length === 1 ? 'is' : 'are'}`;
-    const backupText = `The files as they were are kept at ${done.yaml}${done.pack ? ` and ${done.pack}` : ''}.`;
+    const kept = [done.yaml, done.pack, done.md].filter(Boolean);
+    const backupText = `The files as they were are kept at ${kept.slice(0, -1).join(', ')}${kept.length > 1 ? ' and ' : ''}${kept[kept.length - 1]}.`;
     const stayNames = staying.map((u) => u.name);
     const lines = (applied.lines || []).map((l) => withoutStaying(namingThePack(l, internal), packConfigPath, stayNames));
     lines.push(...moved, ...stayLines(staying.filter((u) => !OWN_KEYS.includes(u.name) || unreadableOwn(u)), packConfigPath));

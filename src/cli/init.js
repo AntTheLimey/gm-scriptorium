@@ -582,6 +582,7 @@ async function runInitCommand(
         if (planned) {
           const done = applyCarry(planned, { machineDir, campaign: name, writePack: false });
           emit(`A copy of _meta/vault-config.yaml as it was is kept at ${done.backups.yaml}`);
+          if (done.backups.md) emit(`A copy of the leftover _meta/vault-config.md, which was removed, is kept at ${done.backups.md}`);
           if (done.unmoved.length > 0) {
             entries = stripEntriesForMovedVault(scaffoldEntries(vaultAbs, missing, { title, theme }), done.unmoved.map((u) => u.name)).entries;
           }

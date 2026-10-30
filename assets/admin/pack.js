@@ -1245,10 +1245,11 @@
       section.appendChild(linesList(carryResult.lines, 'carry-result'));
       var kept = el('p');
       kept.className = 'a1-hint';
-      setText(kept, 'Copies of both files as they were:');
+      setText(kept, 'Copies of the files as they were:');
       section.appendChild(kept);
       var backups = [carryResult.backups.yaml];
       if (carryResult.backups.pack) backups.push(carryResult.backups.pack);
+      if (carryResult.backups.md) backups.push(carryResult.backups.md);
       section.appendChild(linesList(backups, 'carry-backups'));
     }
 

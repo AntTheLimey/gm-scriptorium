@@ -132,6 +132,27 @@ test('carry --yes folds the pack into the yaml, strips the pack, backs both up o
   });
 });
 
+test('a leftover vault-config.md the pin removes as redundant is backed up first, outside the vault, and the output says where', () => {
+  withScratch((root) => {
+    const vault = setup(root);
+    const md = path.join(vault, '_meta', 'vault-config.md');
+    const MD = '---\ntype: meta\n---\n';
+    fs.writeFileSync(md, MD);
+    const planned = planCarry({ vaultPath: vault, campaign: 't', packConfigPath: packOf(vault) });
+    discardCarry(planned);
+    assert.ok(planned.plan.files.remove.some((f) => path.basename(f) === 'vault-config.md'), 'the pin plans to remove the leftover file');
+    const res = run(root, ['carry', '--yes']);
+    assert.equal(res.code, 0, res.all);
+    assert.equal(fs.existsSync(md), false, 'the pin removed it');
+    const mdBackups = backupsIn(root).filter((n) => /^vault-config-\d{8}T\d{9}Z-[0-9a-f]{6}\.md\.bak$/.test(n));
+    assert.equal(mdBackups.length, 1, backupsIn(root).join(','));
+    const backup = path.join(root, 'backups', 'campaign-t', mdBackups[0]);
+    assert.equal(fs.readFileSync(backup, 'utf8'), MD);
+    assert.deepEqual(insideVault(vault), []);
+    assert.ok(res.out.includes(backup), res.out);
+  });
+});
+
 test('the backups hold the files as they were before the carry', () => {
   withScratch((root) => {
     const vault = setup(root);
