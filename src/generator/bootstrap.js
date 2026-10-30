@@ -205,7 +205,8 @@ function classifyGeneratorLog(captured) {
 }
 
 /**
- * Calls gm-apprentice-publish's build({configPath}) with the copyFileSync
+ * Calls gm-apprentice-publish's build({configPath}) (plus outputDirOverride when the staged file
+ * has no outputDir: a vault on _meta/vault-config.yaml, ADR 0071) with the copyFileSync
  * shim and a scoped console capture installed only for the duration of
  * this call, restored in a finally either way.
  *
@@ -236,7 +237,7 @@ function classifyGeneratorLog(captured) {
  * the inner level, closing #228/#236 upstream. See docs/COLLABORATING.md
  * and the ADR 0013 addendum.
  */
-function runGeneratorBuild(configPath) {
+function runGeneratorBuild(configPath, { outputDirOverride = null } = {}) {
   const restoreShim = installCopyFileShim();
   const restoreReadShim = installVaultReadShim(stagedVaultRoot(configPath), READ_TRANSFORMS_FOR_BUILD);
   const restoreSegmenterShim = installSegmenterShim();
@@ -252,7 +253,8 @@ function runGeneratorBuild(configPath) {
     fmguard.verifyFrontmatterEngineGuard(pinned.parseManifest, pinned.generatorGrayMatter);
     // eslint-disable-next-line global-require
     const { build } = require('gm-apprentice-publish');
-    build({ configPath });
+    // ADR 0071: on a moved vault the output folder is not in the staged file (src/build/stage.js stageConfig).
+    build(outputDirOverride ? { configPath, outputDirOverride } : { configPath });
   } catch (err) {
     error = err;
   } finally {

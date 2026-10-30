@@ -23,7 +23,7 @@ const { defaultTitleFor } = require('../src/setup/scaffold');
 const { paletteScheme, runThemeSchemeMismatch } = require('../src/checks/themescheme');
 const { runSettingsFault } = require('../src/checks/configdiv');
 const { contextFromSite } = require('../src/cli/check');
-const { writeStagedConfig } = require('../src/build/stage');
+const { writeStagedConfig, stageConfig } = require('../src/build/stage');
 const { VaultUnreachableError } = require('../src/util/errors');
 const { moveVaultCopy } = require('./helpers/moved-vault');
 
@@ -123,8 +123,27 @@ test('the staged vault.config.json on a moved vault carries none of the keys the
     }
     assert.equal(staged.customNote, 'keep');
     assert.equal(staged.vaultPath, vault);
-    assert.equal(staged.outputDir, out);
+    // ADR 0071: no outputDir either. The build is told where to write by the generator's own option
+    // (stageConfig's outputDirOverride), so the generator never warns about a site-file outputDir.
+    assert.equal(Object.prototype.hasOwnProperty.call(staged, 'outputDir'), false, 'outputDir must not reach the generator');
   });
+});
+
+test('stageConfig on a moved vault hands back the output folder as an override; on a legacy vault, none', () => {
+  withMoved((vault, root) => {
+    const out = path.join(root, 'out');
+    const staged = stageConfig({ customNote: 'keep' }, vault, path.join(root, 'staging'), out);
+    assert.equal(staged.outputDirOverride, out);
+    assert.equal(JSON.parse(fs.readFileSync(staged.configPath, 'utf8')).customNote, 'keep');
+  });
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-moved-read-'));
+  try {
+    const legacy = stageConfig({ siteTitle: 'Old' }, SAMPLE, path.join(root, 's'), path.join(root, 'o'));
+    assert.equal(legacy.outputDirOverride, null);
+    assert.equal(JSON.parse(fs.readFileSync(legacy.configPath, 'utf8')).outputDir, path.join(root, 'o'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('the staged config of a legacy vault is unchanged: every key verbatim', () => {

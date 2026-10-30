@@ -60,24 +60,46 @@ function mirrorSiteInputs(siteDir, stagingRoot) {
  * relative-path contract for the USER's file (Engineering Brief section
  * 3, step 6). Does not rewrite the user's own vault.config.json.
  *
+ * On a vault whose settings moved to _meta/vault-config.yaml (ADR 0071) the staged file carries no
+ * outputDir at all, and the output folder comes back as `outputDirOverride` instead, for the
+ * generator's own build option of that name (lib/build.js:226). On that layout the generator reads
+ * outputDir as a site-file setting it is about to move, and warned on every build that it "moves to
+ * player_site.output", about a key only this file ever held. The override changes nothing else on a
+ * player-site build: it also turns off the vault's build steps, which Scriptorium never runs.
+ *
  * @param {object} userJsonConfig already-loaded vault.config.json content
  * @param {string} vaultPath absolute
  * @param {string} stagingRoot
  * @param {string} stagingOut absolute
- * @returns {string} the synthesised config's absolute path
+ * @returns {{ configPath: string, outputDirOverride: string|null }} the synthesised config's absolute
+ *   path, and the output folder to hand the generator's build (null: it is in the file)
  */
-function writeStagedConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut) {
+function stageConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut) {
   fs.mkdirSync(stagingRoot, { recursive: true });
   // A moved vault's pack is staged with every key the vault's settings now own taken out, so the
   // generator never sees one (the settings it reads come from the vault). runAtomicBuild's signature
   // is pinned (test/gm-link-gate.test.js), so it is handed the resolved pack, not the raw one; the
   // moved keys it holds are overwritten or removed by the resolve, so stripping them gives the same file.
   const moved = pinned.settingsLayoutOf(vaultPath) === 'new';
-  const base = moved ? pinned.stripMovedSettings(userJsonConfig).config : userJsonConfig;
-  const staged = { ...base, vaultPath, outputDir: stagingOut };
+  const staged = moved ? { ...pinned.stripMovedSettings(userJsonConfig).config, vaultPath } : { ...userJsonConfig, vaultPath, outputDir: stagingOut };
+  if (moved) delete staged.outputDir;
   const configPath = path.join(stagingRoot, 'vault.config.json');
   fs.writeFileSync(configPath, JSON.stringify(staged, null, 2));
-  return configPath;
+  return { configPath, outputDirOverride: moved ? stagingOut : null };
 }
 
-module.exports = { writeStagedConfig, SITE_RELATIVE_INPUTS, mirrorSiteInputs };
+/**
+ * stageConfig's file alone: its absolute path. The output folder it does not write on a moved vault
+ * is in stageConfig's `outputDirOverride`; a build must use stageConfig.
+ *
+ * @param {object} userJsonConfig
+ * @param {string} vaultPath
+ * @param {string} stagingRoot
+ * @param {string} stagingOut
+ * @returns {string}
+ */
+function writeStagedConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut) {
+  return stageConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut).configPath;
+}
+
+module.exports = { stageConfig, writeStagedConfig, SITE_RELATIVE_INPUTS, mirrorSiteInputs };

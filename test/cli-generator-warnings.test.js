@@ -236,3 +236,43 @@ test('generatorWarningLines keeps warn-level lines only, trims indentation, and 
   assert.deepEqual(generatorWarningLines([], paths), []);
   assert.deepEqual(generatorWarningLines(undefined, paths), []);
 });
+
+/*
+ * ADR 0071: a vault whose settings moved to _meta/vault-config.yaml. The build used to stage its
+ * own outputDir in the site file, and the pin warned on every build that "`outputDir` in the site
+ * folder's vault.config.json moves to `player_site.output`", a file the GM never wrote. The moved
+ * copy is made by the pin's own move (test/helpers/moved-vault.js), never by hand.
+ */
+function makeMovedCampaign(dir) {
+  const { moveVaultCopy, assertMovedLayout } = require('./helpers/moved-vault');
+  const srcDir = path.join(dir, 'src');
+  fs.mkdirSync(srcDir);
+  const { vault } = makeCampaign(srcDir);
+  const movedRoot = path.join(dir, 'moved');
+  fs.mkdirSync(movedRoot);
+  const { vaultPath } = moveVaultCopy(vault, movedRoot);
+  assertMovedLayout(vaultPath);
+  // The pack as a GM on a moved vault has it: no outputDir of its own.
+  const siteConfigPath = path.join(dir, 'site.json');
+  fs.writeFileSync(siteConfigPath, JSON.stringify({ vaultPath }));
+  const out = path.join(dir, 'out');
+  const configPath = path.join(dir, 'config.toml');
+  fs.writeFileSync(
+    configPath,
+    ['config_version = 1', 'default_campaign = "t"', '', '[campaigns.t]', `vault = '${vaultPath}'`, `site_config = '${siteConfigPath}'`, `output = '${out}'`].join('\n'),
+  );
+  return { configPath, out };
+}
+
+test('a moved-vault build prints no warning about an outputDir the GM never wrote, and still builds into the output folder', () => {
+  withScratch((dir) => {
+    const { configPath, out } = makeMovedCampaign(dir);
+    const result = runBuild(configPath);
+    assert.equal(result.exitCode, 0, result.human);
+    const w = result.envelope.generatorWarnings;
+    assert.deepEqual(w.filter((l) => /outputDir|player_site\.output/.test(l)), [], JSON.stringify(w));
+    assert.doesNotMatch(result.human, /outputDir|player_site\.output/);
+    assert.ok(fs.existsSync(path.join(out, 'locations', 'town.html')), 'the page is built into the campaign output folder');
+    assert.ok(fs.existsSync(path.join(out, 'index.html')));
+  });
+});
