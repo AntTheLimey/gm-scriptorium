@@ -1383,8 +1383,9 @@ patch would be process-wide and long-lived; this one covers two paths for one sy
   is now also required by `lib/settings/steps.js`, which runs a vault's build steps only when the
   caller passes `options.runSteps` (`lib/build.js:258`); Scriptorium never does. A search of `src/`,
   `bin/` and `scripts/` finds no use of `runSteps`, and the only callers in the pin are its own
-  deploy and backend-setup commands, which Scriptorium does not reach. The maintainer approved adding
-  `lib/settings/steps.js` to the module-graph test's expected set, which now names three files. The
+  deploy and backend-setup commands, which Scriptorium does not reach. Adding
+  `lib/settings/steps.js` to the module-graph test's expected set, which now names three files, is a
+  maintainer decision, flagged in the pull request that made it. The
   file is in the graph but cannot run from here; if Scriptorium ever passes `runSteps`, this
   decision must be revisited first.
 - **Rules-content scan.** `PIN_SCAN_BASELINE` re-derived: 56 hits before, 69 after, every new one read
