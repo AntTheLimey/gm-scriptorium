@@ -1389,7 +1389,7 @@ patch would be process-wide and long-lived; this one covers two paths for one sy
   file is in the graph but cannot run from here; if Scriptorium ever passes `runSteps`, this
   decision must be revisited first.
 
-  The settings move (`lib/settings/move.js`), reached since the carry command (rung 3b), is the
+  The settings move (`lib/settings/move.js`), reached since the carry command, is the
   fourth. It takes `spawnSync` out of the child-process module when it loads, for a check that asks a
   site folder which publish tool it uses by running the pin's own command with `process.execPath`. In
   the packaged executable `process.execPath` is GM-Scriptorium itself, so that command must never run.

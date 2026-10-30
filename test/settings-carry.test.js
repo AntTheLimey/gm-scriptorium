@@ -10,7 +10,7 @@ const { PassThrough } = require('stream');
 const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
 const { moveVaultCopy } = require('./helpers/moved-vault');
 const { runCarryCommand } = require('../src/cli/carry');
-const { planCarry, applyCarry } = require('../src/vault/settingscarry');
+const { planCarry, applyCarry, discardCarry } = require('../src/vault/settingscarry');
 const packreplace = require('../src/vault/packreplace');
 const { VaultUnreachableError, ScriptoriumError } = require('../src/util/errors');
 
@@ -205,8 +205,16 @@ test('a title and folder map the yaml already holds are not overwritten, and the
     const pack = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
     pack.siteTitle = 'Pack Title';
     fs.writeFileSync(packOf(vault), JSON.stringify(pack, null, 2));
+    // The plan, which the GM reads before answering, already says the vault's value is used.
+    const planned = planCarry({ vaultPath: vault, campaign: 't', packConfigPath: packOf(vault) });
+    discardCarry(planned);
+    assert.ok(
+      planned.lines.includes('siteTitle in the pack is "Pack Title", but the vault\'s settings set player_site.title to "Yaml Title"; the vault\'s value is used.'),
+      planned.lines.join('\n'),
+    );
     const res = run(root, ['carry', '--yes']);
     assert.equal(res.code, 0, res.all);
+    assert.equal(res.out.split('siteTitle in the pack is').length - 1, 1, 'said once');
     const yaml = fs.readFileSync(yamlOf(vault), 'utf8');
     assert.match(yaml, /^\s+title: "?Yaml Title"?$/m);
     assert.ok(!yaml.includes('Pack Title'));
@@ -240,6 +248,109 @@ test('when the title and folder map cannot be written, the pack keeps both, the 
     assert.ok(!('excludeSections' in left));
     assert.ok(fs.readFileSync(yamlOf(vault), 'utf8').includes('Pack Only Secret'));
     assert.ok(!/folder_map:/.test(fs.readFileSync(yamlOf(vault), 'utf8')));
+  } finally {
+    pinned.applySettingsChanges = real;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('settings the pin drops without carrying stay in the pack with their values, are named, and are not lost from the vault', () => {
+  withScratch((root) => {
+    const vault = setupUnfolded(root);
+    const pack = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    pack.footer = 'Pack footer';
+    pack.attachmentsDir = 'files';
+    pack.searchEnabled = false;
+    fs.writeFileSync(packOf(vault), JSON.stringify(pack, null, 2));
+    const res = run(root, ['carry', '--yes']);
+    assert.equal(res.code, 0, res.all);
+    const left = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    assert.equal(left.footer, 'Pack footer');
+    assert.equal(left.attachmentsDir, 'files');
+    assert.equal(left.searchEnabled, false);
+    // The title, the folder map and the hide list did move.
+    assert.ok(!('siteTitle' in left) && !('folderMap' in left) && !('excludeSections' in left));
+    for (const name of ['footer', 'attachmentsDir', 'searchEnabled']) {
+      assert.ok(res.out.includes(`${name} stays in ${packOf(vault)}`), `${name} not named:\n${res.out}`);
+    }
+    // Not silently lost: the yaml did not take them, so they are only in the pack.
+    assert.ok(!fs.readFileSync(yamlOf(vault), 'utf8').includes('Pack footer'));
+    // A second carry has nothing to move, and still names them.
+    const again = run(root, ['carry', '--yes']);
+    assert.equal(again.code, 0, again.all);
+    assert.match(again.out, /nothing to carry/);
+    for (const name of ['footer', 'attachmentsDir', 'searchEnabled']) assert.ok(again.out.includes(`${name} stays in`), again.out);
+    assert.deepEqual(JSON.parse(fs.readFileSync(packOf(vault), 'utf8')), left);
+  });
+});
+
+test('if the title write and the pack rewrite both fail, exit 3, the message says the title is still only in the pack, and names both backups', async () => {
+  const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-b4-'));
+  const pinned = require('../src/generator/pinned');
+  const realWrite = pinned.applySettingsChanges;
+  const realReplace = packreplace.replacePackFile;
+  try {
+    const vault = setupUnfolded(root);
+    const packBefore = fs.readFileSync(packOf(vault));
+    pinned.applySettingsChanges = () => {
+      throw new Error('EACCES: yaml');
+    };
+    packreplace.replacePackFile = () => {
+      const e = new Error('EACCES: pack');
+      e.code = 'EACCES';
+      throw e;
+    };
+    const res = await inProcess(root, { yes: true });
+    pinned.applySettingsChanges = realWrite;
+    packreplace.replacePackFile = realReplace;
+    assert.equal(res.code, 3, res.out);
+    assert.equal(res.err.reason, 'carry-blocked');
+    assert.ok(!res.err.message.includes('nothing else needs doing'), res.err.message);
+    assert.match(res.err.message, /siteTitle and folderMap are still only in /);
+    assert.match(res.err.message, /vault-config-\d{8}T\d{9}Z-[0-9a-f]{6}\.yaml\.bak/);
+    assert.match(res.err.message, /vault\.config-\d{8}T\d{9}Z-[0-9a-f]{6}\.json\.bak/);
+    assert.equal(Buffer.compare(fs.readFileSync(packOf(vault)), packBefore), 0);
+  } finally {
+    pinned.applySettingsChanges = realWrite;
+    packreplace.replacePackFile = realReplace;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a plain title write failure exits 3 and names both backups', async () => {
+  const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-b4-'));
+  const pinned = require('../src/generator/pinned');
+  const real = pinned.applySettingsChanges;
+  try {
+    setupUnfolded(root);
+    pinned.applySettingsChanges = () => {
+      throw new Error('EACCES: yaml');
+    };
+    const res = await inProcess(root, { yes: true });
+    pinned.applySettingsChanges = real;
+    assert.equal(res.code, 3, res.out);
+    assert.match(res.err.message, /vault-config-\d{8}T\d{9}Z-[0-9a-f]{6}\.yaml\.bak/);
+    assert.match(res.err.message, /vault\.config-\d{8}T\d{9}Z-[0-9a-f]{6}\.json\.bak/);
+  } finally {
+    pinned.applySettingsChanges = real;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a writer that reports success but writes nothing is caught by the read-back: exit 3, the pack keeps the title and folder map', async () => {
+  const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-b4-'));
+  const pinned = require('../src/generator/pinned');
+  const real = pinned.applySettingsChanges;
+  try {
+    const vault = setupUnfolded(root);
+    pinned.applySettingsChanges = () => ({ file: yamlOf(vault), changed: [] });
+    const res = await inProcess(root, { yes: true });
+    pinned.applySettingsChanges = real;
+    assert.equal(res.code, 3, res.out);
+    assert.match(res.err.message, /it did not read back as written/);
+    const left = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    assert.equal(left.siteTitle, 'The Long Lease');
+    assert.equal(left.folderMap.Sessions, 'sessions');
   } finally {
     pinned.applySettingsChanges = real;
     fs.rmSync(root, { recursive: true, force: true });

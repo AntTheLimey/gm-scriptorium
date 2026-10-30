@@ -349,9 +349,11 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
         staying = [...staying, ...own];
       }
     }
+    const ownNames = () => `${own.map((u) => u.name).join(' and ')} ${own.length === 1 ? 'is' : 'are'}`;
+    const backupText = `The files as they were are kept at ${done.yaml}${done.pack ? ` and ${done.pack}` : ''}.`;
     const stayNames = staying.map((u) => u.name);
     const lines = (applied.lines || []).map((l) => withoutStaying(namingThePack(l, internal), packConfigPath, stayNames));
-    lines.push(...moved, ...differLines(internal.differs || []), ...stayLines(staying.filter((u) => !OWN_KEYS.includes(u.name)), packConfigPath));
+    lines.push(...moved, ...stayLines(staying.filter((u) => !OWN_KEYS.includes(u.name)), packConfigPath));
 
     // 3. The scratch copy becomes the pack, with whatever stays put back.
     if (writePack) {
@@ -367,9 +369,18 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
         const text = `${JSON.stringify(left, null, 2)}\n`;
         packreplace.replacePackFile(vaultPath, 'vault.config.json', text, { expectedSha256: internal.packSha, campaign, sleep });
       } catch (err) {
+        const why = String(err.code || err.message).replace(/\s+/g, ' ');
+        if (ownFailure) {
+          // Both failed: the title and folder map are in neither file's new state, so do not say the job is done.
+          throw new VaultUnreachableError(
+            `The carry could not finish. ${ownNames()} still only in ${packConfigPath}: the vault's settings file could not be written (${ownFailure}), ` +
+              `and ${packConfigPath} could not be rewritten (${why}). Nothing is lost. Run "gm-scriptorium carry" again once the files can be written. ${backupText}`,
+            { path: yamlPath, campaign, reason: 'carry-blocked' },
+          );
+        }
         throw new ScriptoriumError(
           `The vault's settings already hold every value that was carried, but ${packConfigPath} could not be rewritten ` +
-            `(${String(err.code || err.message).replace(/\s+/g, ' ')}). It can stay as it is: the vault's settings are the ones used, ` +
+            `(${why}). It can stay as it is: the vault's settings are the ones used, ` +
             `and nothing else needs doing. The pack as it was is kept at ${done.pack}.`,
           { path: packConfigPath, campaign, cause: err },
         );
@@ -378,8 +389,8 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     }
     if (ownFailure) {
       throw new VaultUnreachableError(
-        `${own.map((u) => u.name).join(' and ')} ${own.length === 1 ? 'is' : 'are'} still in ${packConfigPath}: the vault's settings file could not be written (${ownFailure}). ` +
-          'The rest of the carry is done. Run "gm-scriptorium carry" again once the file can be written.',
+        `${ownNames()} still in ${packConfigPath}: the vault's settings file could not be written (${ownFailure}). ` +
+          `The rest of the carry is done. Run "gm-scriptorium carry" again once the file can be written. ${backupText}`,
         { path: yamlPath, campaign, reason: 'carry-blocked' },
       );
     }

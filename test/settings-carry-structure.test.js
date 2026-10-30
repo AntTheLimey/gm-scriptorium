@@ -4,7 +4,7 @@
  * Structural pins for the carry (rung 3b). The pin's move code can write the settings files, so:
  *
  *   1. only src/generator/pinned.js names planMove or applyMove (the facade);
- *   2. only src/vault/settingscarry.js names applySettingsCarry (the one writer);
+ *   2. only src/vault/settingscarry.js names applySettingsCarry or applySettingsChanges (the writers);
  *   3. settingscarry is required only by the carry command, init and the panel's carry handler
  *      (src/admin/handlers/carry.js, which arrives with the panel slice).
  *
@@ -42,6 +42,8 @@ function filesNaming(root, dirs, re) {
 
 const MOVE_RE = /\b(?:applyMove|planMove)\b/;
 const APPLY_CARRY_RE = /\bapplySettingsCarry\b/;
+// The facade's writer of the vault's settings file: check and build must never reach it.
+const WRITER_RE = /\bapplySettingsChanges\b/;
 const REQUIRE_CARRY_RE = /require\(\s*(['"`])[^'"`]*\bsettingscarry\1\s*\)/;
 const DIRS = ['src', 'bin', 'scripts'];
 
@@ -52,6 +54,11 @@ test('only the facade names applyMove or planMove', () => {
 
 test('only src/vault/settingscarry.js names applySettingsCarry, apart from its definition in the facade', () => {
   const found = filesNaming(ROOT, DIRS, APPLY_CARRY_RE);
+  assert.deepEqual(found, ['src/generator/pinned.js', 'src/vault/settingscarry.js']);
+});
+
+test('only src/vault/settingscarry.js calls applySettingsChanges, apart from its definition in the facade', () => {
+  const found = filesNaming(ROOT, DIRS, WRITER_RE);
   assert.deepEqual(found, ['src/generator/pinned.js', 'src/vault/settingscarry.js']);
 });
 
@@ -74,6 +81,8 @@ test('positive control: a planted tree is caught by each scan', () => {
     assert.deepEqual(filesNaming(scratch, ['src'], MOVE_RE), ['src/x/a.js']);
     assert.deepEqual(filesNaming(scratch, ['src'], APPLY_CARRY_RE), ['src/x/b.js']);
     assert.deepEqual(filesNaming(scratch, ['src'], REQUIRE_CARRY_RE), ['src/x/c.js']);
+    fs.writeFileSync(path.join(scratch, 'src', 'x', 'e.js'), 'pinned.applySettingsChanges(v, c);\n');
+    assert.deepEqual(filesNaming(scratch, ['src'], WRITER_RE), ['src/x/e.js']);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }
