@@ -145,33 +145,105 @@ test('the backups hold the files as they were before the carry', () => {
   });
 });
 
-test('settings the pin cannot carry stay in the pack, named, and the hide list still moves', () => {
+test('the title and the folder map land in the yaml, the pack is stripped, and the built site shows both', () => {
   withScratch((root) => {
     const vault = setupUnfolded(root);
-    assert.ok(!/^\s+title:/m.test(fs.readFileSync(yamlOf(vault), 'utf8')), 'the yaml must not set a title yet');
+    const pack = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    pack.siteTitle = 'A Renamed Lease';
+    fs.writeFileSync(packOf(vault), JSON.stringify(pack, null, 2));
+    const yamlBefore = fs.readFileSync(yamlOf(vault));
+    assert.ok(!/^\s+title:/m.test(yamlBefore.toString()), 'the yaml must not set a title yet');
+    assert.ok(!/folder_map:/.test(yamlBefore.toString()), 'the yaml must not set a folder map yet');
     const res = run(root, ['carry', '--yes']);
     assert.equal(res.code, 0, res.all);
-    assert.ok(fs.readFileSync(yamlOf(vault), 'utf8').includes('Pack Only Secret'));
-    const pack = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
-    // The pin removes these from the pack without writing them to the yaml; the carry puts them back.
-    assert.equal(pack.siteTitle, 'The Long Lease');
-    assert.equal(pack.folderMap.Sessions, 'sessions');
-    assert.ok(!('excludeSections' in pack));
-    assert.ok(!('excludeDirs' in pack));
-    assert.ok(!('landingTagline' in pack));
-    for (const name of ['siteTitle', 'folderMap']) {
-      assert.ok(res.out.includes(`${name} stays in ${packOf(vault)}`), `${name} not named:\n${res.out}`);
-    }
-    // The hide list was the error; what is left are warnings, which still name the carry.
+    const yaml = fs.readFileSync(yamlOf(vault), 'utf8');
+    assert.match(yaml, /^\s+title: "?A Renamed Lease"?$/m);
+    assert.match(yaml, /folder_map:/);
+    assert.match(yaml, /Sessions: "?sessions"?/);
+    assert.ok(yaml.includes('Pack Only Secret'));
+    const left = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    assert.ok(!('siteTitle' in left));
+    assert.ok(!('folderMap' in left));
+    assert.ok(res.out.includes('`siteTitle` moved to `player_site.title`.'), res.out);
+    assert.ok(res.out.includes('`folderMap` moved to `player_site.folder_map`.'), res.out);
+    assert.ok(!res.out.includes('stays in'), res.out);
+    // The backup of the yaml is the file as it was before the carry.
+    const dir = path.join(root, 'backups', 'campaign-t');
+    const yamlBak = backupsIn(root).find((n) => n.endsWith('.yaml.bak'));
+    assert.equal(Buffer.compare(fs.readFileSync(path.join(dir, yamlBak)), yamlBefore), 0);
+    // check is clean, and the build uses the title and the folder layout.
     const checked = run(root, ['check']);
     assert.equal(checked.code, 0, checked.all);
-    assert.ok(!reports(checked.out, 'config/pack-hiding-not-carried'));
-    // A second carry has nothing more to move, says so, and still names what stays.
+    for (const id of CARRY_IDS) assert.ok(!reports(checked.out, id), `${id} still reported:\n${checked.out}`);
+    assert.ok(!reports(checked.out, 'vault/unmapped-directory'), checked.out);
+    const built = run(root, ['build']);
+    assert.equal(built.code, 0, built.all);
+    assert.match(fs.readFileSync(path.join(root, 'site', 'index.html'), 'utf8'), /A Renamed Lease/);
+    assert.ok(fs.existsSync(path.join(root, 'site', 'characters', 'pcs')), 'the folder map must put the PCs under characters/pcs');
+    // Run again: nothing to do, no new backup, no change.
+    const yamlAfter = fs.readFileSync(yamlOf(vault));
+    const packAfter = fs.readFileSync(packOf(vault));
+    const backups = backupsIn(root);
     const again = run(root, ['carry', '--yes']);
     assert.equal(again.code, 0, again.all);
     assert.match(again.out, /nothing to carry/);
-    assert.ok(again.out.includes(`siteTitle stays in ${packOf(vault)}`), again.out);
+    assert.deepEqual(backupsIn(root), backups);
+    assert.equal(Buffer.compare(fs.readFileSync(yamlOf(vault)), yamlAfter), 0);
+    assert.equal(Buffer.compare(fs.readFileSync(packOf(vault)), packAfter), 0);
   });
+});
+
+test('a title and folder map the yaml already holds are not overwritten, and the differing values are said', () => {
+  withScratch((root) => {
+    const vault = setupUnfolded(root);
+    // Test-only: the pin's own writer sets what the vault already holds.
+    const { applyChanges } = require('gm-apprentice-publish/lib/settings/write');
+    applyChanges(vault, [
+      { op: 'set', name: 'player_site.title', value: 'Yaml Title' },
+      { op: 'set', name: 'player_site.folder_map', value: { Sessions: 'yaml-sessions' } },
+    ]);
+    const pack = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    pack.siteTitle = 'Pack Title';
+    fs.writeFileSync(packOf(vault), JSON.stringify(pack, null, 2));
+    const res = run(root, ['carry', '--yes']);
+    assert.equal(res.code, 0, res.all);
+    const yaml = fs.readFileSync(yamlOf(vault), 'utf8');
+    assert.match(yaml, /^\s+title: "?Yaml Title"?$/m);
+    assert.ok(!yaml.includes('Pack Title'));
+    assert.match(yaml, /Sessions: "?yaml-sessions"?/);
+    assert.ok(!yaml.includes('characters/pcs'), 'the pack folder map must not be merged in');
+    assert.ok(res.out.includes('siteTitle in the pack is "Pack Title", but the vault\'s settings set player_site.title to "Yaml Title"; the vault\'s value is used.'), res.out);
+    assert.match(res.out, /folderMap in the pack is \{.*\}, but the vault's settings set player_site\.folder_map to \{"Sessions":"yaml-sessions"\}; the vault's value is used\./);
+    const left = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    assert.ok(!('siteTitle' in left) && !('folderMap' in left));
+  });
+});
+
+test('when the title and folder map cannot be written, the pack keeps both, the command exits 3, and the rest is carried', async () => {
+  const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-b4-'));
+  const pinned = require('../src/generator/pinned');
+  const real = pinned.applySettingsChanges;
+  try {
+    const vault = setupUnfolded(root);
+    pinned.applySettingsChanges = () => {
+      throw new Error('EACCES: permission denied');
+    };
+    const res = await inProcess(root, { yes: true });
+    pinned.applySettingsChanges = real;
+    assert.equal(res.code, 3, res.out);
+    assert.equal(res.err.reason, 'carry-blocked');
+    assert.match(res.err.message, /siteTitle and folderMap are still in /);
+    assert.ok(res.err.message.includes(packOf(vault)), res.err.message);
+    const left = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    assert.equal(left.siteTitle, 'The Long Lease');
+    assert.equal(left.folderMap.Sessions, 'sessions');
+    assert.ok(!('excludeSections' in left));
+    assert.ok(fs.readFileSync(yamlOf(vault), 'utf8').includes('Pack Only Secret'));
+    assert.ok(!/folder_map:/.test(fs.readFileSync(yamlOf(vault), 'utf8')));
+  } finally {
+    pinned.applySettingsChanges = real;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('a second carry says there is nothing to carry, exits 0 and makes no backup', () => {

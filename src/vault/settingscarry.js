@@ -29,9 +29,10 @@ const { unheldPackSettings } = require('../checks/carry');
  * The pin's move on an already-moved vault carries only some pack settings: the site-folder keys, the hide
  * lists and callouts (folded in), and the names it no longer reads. It removes the rest of the pack's
  * settings (siteTitle, folderMap, attachmentsDir and so on) from the site file WITHOUT writing them to the
- * yaml. Letting that through would lose them, so the carry never rewrites the pack without a setting the
- * vault's settings do not hold afterwards: those stay in the pack, are named in the plan, and `check` keeps
- * reporting them. They are the GM's to put in _meta/vault-config.yaml.
+ * yaml. Letting that through would lose them, so:
+ *   - siteTitle and folderMap are set in the yaml afterwards with the pin's own settings writer (below);
+ *   - any other setting the vault's settings do not hold afterwards stays in the pack, is named in the plan,
+ *     and `check` keeps reporting it. It is the GM's to put in _meta/vault-config.yaml.
  *
  * Order of an apply: back up the yaml and the pack (outside the vault, in the per-machine folder), check
  * the pack is as planned, apply the pin's plan (the yaml is written here), rewrite the pack. A failure
@@ -40,6 +41,10 @@ const { unheldPackSettings } = require('../checks/carry');
  */
 
 const YAML_REL = ['_meta', 'vault-config.yaml'];
+// The two pack settings the pin's move drops without carrying. This step exists because of the pin defect
+// AntTheLimey/gm-apprentice#539, and comes out when a pin carries the fix. The setting names are the
+// registry's, read from the pin's own fault for the pack key (fault.setting), not typed here.
+const OWN_KEYS = ['siteTitle', 'folderMap'];
 const SCRATCH_PREFIX = 'scriptorium-carry-';
 const PIN_CHANGED_RE = /changed since the move was planned/;
 
@@ -107,6 +112,15 @@ function withoutStaying(line, packPath, staying) {
   if (!m) return line;
   const keep = m[1].split(', ').filter((n) => !staying.includes(n));
   return `${line.slice(0, from)}${keep.length ? keep.join(', ') : 'nothing'}${line.slice(from + m[1].length)}`;
+}
+
+const showValue = (v) => JSON.stringify(v);
+
+/** The title and folder map the yaml sets differently from the pack: the vault's value is kept. */
+function differLines(differs) {
+  return differs.map(
+    (d) => `${d.name} in the pack is ${showValue(d.value)}, but the vault's settings set ${d.setting} to ${showValue(d.vaultValue)}; the vault's value is used.`,
+  );
 }
 
 function stayLines(unmoved, packPath) {
@@ -214,10 +228,19 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
 
   // The pack settings the pin removes without carrying them (see the header): they stay in the pack.
   let unmoved;
+  let own;
+  let differs;
   try {
     const { unheld } = unheldPackSettings(realVault, pack, readSettingsFiles(realVault));
     const carriedFrom = new Set(carried.map((c) => c.from));
     unmoved = cannotMove(unheld).filter((u) => u.level !== 'stop' && !carriedFrom.has(u.name));
+    // siteTitle and folderMap are set by the carry itself: the vault does not set them (they move), or it does,
+    // differently (its value is used, and the line says so).
+    own = unmoved.filter((u) => OWN_KEYS.includes(u.name));
+    unmoved = unmoved.filter((u) => !OWN_KEYS.includes(u.name));
+    differs = unheld
+      .filter((u) => OWN_KEYS.includes(u.fault.name) && u.origin === 'file')
+      .map((u) => ({ name: u.fault.name, setting: u.fault.setting, value: u.fault.value, vaultValue: u.vaultValue }));
   } catch (err) {
     removeScratch(scratchDir);
     return blocked([`the vault's settings could not be read: ${String(err.message).replace(/\s+/g, ' ')}`]);
@@ -230,8 +253,10 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
     removeScratch(scratchDir);
     return { state: 'nothing', lines: stayLines(unmoved, packConfigPath), blockers: [], plan, internal: null, unmoved };
   }
+  internal.differs = differs;
   const lines = plan.lines.map((l) => withoutStaying(namingThePack(l, internal), packConfigPath, stayNames));
-  return { state: 'ready', lines: [...lines, ...stayLines(unmoved, packConfigPath)], blockers: [], plan, internal, unmoved };
+  const ownLines = own.map((u) => `\`${u.name}\` moves to \`${u.setting}\`.`);
+  return { state: 'ready', lines: [...lines, ...ownLines, ...differLines(differs), ...stayLines(unmoved, packConfigPath)], blockers: [], plan, internal, unmoved };
 }
 
 /** Removes the scratch folder of a plan that is not going to be applied. Never throws. */
@@ -292,20 +317,41 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
       throw new ScriptoriumError(`the carry could not be applied: ${message.replace(/\s+/g, ' ')}`, { path: yamlPath, campaign, cause: err });
     }
     // What the vault's settings hold now, read back: whatever the pin removed from the pack but did not
-    // carry stays in the pack.
-    let staying;
-    try {
-      staying = cannotMove(unheldPackSettings(vaultPath, internal.pack, readSettingsFiles(vaultPath)).unheld);
-    } catch (err) {
-      throw new ScriptoriumError(
+    // carry is set here (siteTitle, folderMap) or stays in the pack.
+    const unreadable = (err) =>
+      new ScriptoriumError(
         `The carry wrote the vault's settings, but they could not be read back (${String(err.message).replace(/\s+/g, ' ')}), so ${packConfigPath} was left as it was. ` +
           `The pack as it was is kept at ${done.pack || 'the backup folder'}.`,
         { path: yamlPath, campaign, cause: err },
       );
+    const readBack = () => {
+      try {
+        return cannotMove(unheldPackSettings(vaultPath, internal.pack, readSettingsFiles(vaultPath)).unheld);
+      } catch (err) {
+        throw unreadable(err);
+      }
+    };
+    const after = readBack();
+    const own = after.filter((u) => OWN_KEYS.includes(u.name));
+    let staying = after.filter((u) => !OWN_KEYS.includes(u.name));
+    const moved = [];
+    let ownFailure = null;
+    if (own.length > 0) {
+      // Why this step exists: see OWN_KEYS (AntTheLimey/gm-apprentice#539).
+      try {
+        pinned.applySettingsChanges(vaultPath, own.map((u) => ({ op: 'set', name: u.setting, value: valueAtPath(internal.pack, u.name.split('.')) })));
+        const still = readBack().filter((u) => OWN_KEYS.includes(u.name));
+        if (still.length > 0) throw new Error('it did not read back as written');
+        for (const u of own) moved.push(`\`${u.name}\` moved to \`${u.setting}\`.`);
+      } catch (err) {
+        if (err instanceof ScriptoriumError) throw err;
+        ownFailure = String(err.code || err.message).replace(/\s+/g, ' ');
+        staying = [...staying, ...own];
+      }
     }
     const stayNames = staying.map((u) => u.name);
     const lines = (applied.lines || []).map((l) => withoutStaying(namingThePack(l, internal), packConfigPath, stayNames));
-    lines.push(...stayLines(staying, packConfigPath));
+    lines.push(...moved, ...differLines(internal.differs || []), ...stayLines(staying.filter((u) => !OWN_KEYS.includes(u.name)), packConfigPath));
 
     // 3. The scratch copy becomes the pack, with whatever stays put back.
     if (writePack) {
@@ -329,6 +375,13 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
         );
       }
       lines.push(`${packConfigPath} was rewritten without the settings that moved.`);
+    }
+    if (ownFailure) {
+      throw new VaultUnreachableError(
+        `${own.map((u) => u.name).join(' and ')} ${own.length === 1 ? 'is' : 'are'} still in ${packConfigPath}: the vault's settings file could not be written (${ownFailure}). ` +
+          'The rest of the carry is done. Run "gm-scriptorium carry" again once the file can be written.',
+        { path: yamlPath, campaign, reason: 'carry-blocked' },
+      );
     }
     return { lines, backups: done, unmoved: staying };
   } finally {

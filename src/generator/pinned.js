@@ -341,6 +341,24 @@ function applySettingsCarry(plan) {
   return settingsMove.applyMove(plan, CARRY_DEPS);
 }
 
+// lib/settings/write.js:783 (module.exports). The pin's own settings writer, used by the carry to set the two
+// settings the pin's move removes from the site file without carrying (siteTitle and folderMap). Loads no
+// child-process module.
+const settingsWrite = require('gm-apprentice-publish/lib/settings/write');
+
+/**
+ * Sets settings in the vault's _meta/vault-config.yaml with the pin's writer: `changes` are
+ * { op: 'set', name, value } with the registry's dotted names (`player_site.title`). Writes the file
+ * atomically, or throws having written nothing.
+ *
+ * @param {string} vaultPath
+ * @param {{ op: string, name: string, value?: * }[]} changes
+ * @returns {{ file: string, changed: string[] }}
+ */
+function applySettingsChanges(vaultPath, changes) {
+  return settingsWrite.applyChanges(vaultPath, changes);
+}
+
 /**
  * A site config with every key the pin has moved into the vault's settings taken out, and the names
  * of what was taken. The pin's own stripSiteKeys (lib/settings/move.js:177) is not exported, so this
@@ -627,6 +645,7 @@ module.exports = {
   stripMovedSettings,
   planSettingsCarry,
   applySettingsCarry,
+  applySettingsChanges,
   stricterCallouts,
   headingKey,
   vaultRelPath,

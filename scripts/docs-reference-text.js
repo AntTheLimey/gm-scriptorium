@@ -795,7 +795,7 @@ module.exports = deepFreeze({
       what: 'Reads the vault and reports anything that would leak GM-only material or break the site. It changes nothing.',
     },
     carry: {
-      what: 'For a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: moves the settings your pack still holds into that file. It shows what it will move, asks first, and keeps a copy of both files outside the vault. Hide lists and the other settings the generator can carry move; a setting it cannot carry, such as the site title or the folder map, stays in the pack and is named. `check` tells you when to run it.',
+      what: 'For a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: moves the settings your pack still holds into that file. It shows what it will move, asks first, and keeps a copy of both files outside the vault. The hide lists, the site title, the folder map and the other settings it knows move. A title or folder map the vault already sets is kept as it is, and the line says so. Anything it cannot move stays in the pack and is named. `check` tells you when to run it.',
     },
     build: {
       what: 'Checks the vault, then writes the player-facing website to the output folder. If the check finds errors it refuses and writes nothing.',
