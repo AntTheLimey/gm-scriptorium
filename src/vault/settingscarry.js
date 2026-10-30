@@ -12,7 +12,7 @@ const { readSettingsFiles } = require('./publishset');
 const { unheldPackSettings, missingEntries, vaultSets, isVaultPack } = require('../checks/carry');
 
 /*
- * The carry (rung 3b): folds the settings a campaign pack's vault.config.json still holds into the
+ * The carry (ADR 0071): folds the settings a campaign pack's vault.config.json still holds into the
  * vault's _meta/vault-config.yaml, with the pin's own move code (src/generator/pinned.js,
  * planSettingsCarry and applySettingsCarry), then rewrites the pack without them. `check` reports the
  * settings that need this (src/checks/carry.js) and names the command that does it.

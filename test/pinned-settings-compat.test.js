@@ -89,7 +89,7 @@ test('normalizeExcludeDir drops an absolute folder outside the vault without thr
   assert.equal(pinned.normalizeExcludeDir(path.join(vault, 'Private'), vault, false), 'Private');
 });
 
-// ---- rung 3b: the settings reader and the carry, through the facade ----
+// ---- ADR 0071: the settings reader and the carry, through the facade ----
 
 const fs = require('fs');
 const os = require('os');

@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * The panel on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (rung 3b), in a
+ * The panel on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (ADR 0071), in a
  * real browser (Playwright via PLAYWRIGHT_MODULE; skips, loudly, without it; the axe check also needs
  * axe-core beside it or AXE_CORE_PATH). The vault is a copy of the sample that the pin's own move ran
  * on without folding the pack in, so the yaml sets no title and the pack still holds its settings.

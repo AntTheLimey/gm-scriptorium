@@ -15,7 +15,7 @@ const { writeCarriedPack } = require('../../vault/carrypack');
 const { ScriptoriumError, VaultUnreachableError } = require('../../util/errors');
 
 /*
- * The panel on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (rung 3b).
+ * The panel on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (ADR 0071).
  *
  * settingsView: the `?include=settings` part of GET /api/state. The title and tagline as the vault's
  * settings file sets them, shown read-only until editing them there arrives (rung 3c). A title the yaml

@@ -13,7 +13,7 @@ const read = require('../vault/read');
  * outside the panel is never detected by this signal, and the copy that reads it says so.
  */
 
-// vault-config.yaml (rung 3b): a vault whose settings gm-apprentice moved keeps them there, and the
+// vault-config.yaml (ADR 0071): a vault whose settings gm-apprentice moved keeps them there, and the
 // carry writes it, so a change to it makes a built preview out of date like the other three.
 const TRACKED_FILES = Object.freeze(['pack.toml', 'vault.config.json', 'vault-config.md', 'vault-config.yaml']);
 

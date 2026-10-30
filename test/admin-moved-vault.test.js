@@ -12,7 +12,7 @@ const freshness = require('../src/admin/freshness');
 const { checkTarget } = require('../src/vault/vaultconfigwrite');
 
 /*
- * The panel on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (rung 3b):
+ * The panel on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (ADR 0071):
  * the title, tagline and settings editor are read-only with a line saying where each now lives,
  * and the Title & tagline screen offers the carry (POST /api/settings/carry). Each case starts from
  * a copy of the sample vault that the pin's own move has run on WITHOUT folding the pack in, so the

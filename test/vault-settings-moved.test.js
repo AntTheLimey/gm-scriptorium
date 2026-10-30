@@ -19,7 +19,8 @@ const { ConfigError, VaultUnreachableError } = require('../src/util/errors');
  * Issue #171. The gm-apprentice plugin's update can move a vault's settings from
  * _meta/vault-config.md into _meta/vault-config.yaml. Every "is this a vault?" check counts the
  * .yaml too, and a moved or mixed vault is accepted like any other (the refusal this file once
- * pinned was removed on purpose in rung 3b). Four states, by which of the two files exist:
+ * pinned was removed on purpose when check and build learned to read the yaml, ADR 0071). Four
+ * states, by which of the two files exist:
  *   old (.md only), moved (.yaml only), mixed (both), none (neither).
  *
  * Expected messages are literals on purpose, never read from the code under test. Each test builds

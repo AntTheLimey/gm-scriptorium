@@ -270,7 +270,7 @@ async function runSave(req, res, ctx, endpoint) {
     return;
   }
 
-  // 2b. A setting the vault's own settings file now holds (rung 3b): saving it to the pack would be
+  // 2b. A setting the vault's own settings file now holds (ADR 0071): saving it to the pack would be
   // ignored by the build, so it is refused, dry run or not, and the pack is left as it is.
   if (endpoint.movedRefusal && refreshSettingsLayout(ctx) === 'new') {
     sendJson(res, 409, { error: 'settings-moved', message: endpoint.movedRefusal });

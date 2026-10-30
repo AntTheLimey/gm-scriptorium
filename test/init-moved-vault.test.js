@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * `init` against a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (rung 3b).
+ * `init` against a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (ADR 0071).
  * Every case starts from a copy of the sample vault that the pin's own move has already run on,
  * with its campaign pack removed (a new GM's vault). The command runs as the real bin in a scratch
  * root. Expected values are typed by hand from the sample vault, never read from the code under test.

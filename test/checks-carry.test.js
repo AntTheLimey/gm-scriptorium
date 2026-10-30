@@ -2,7 +2,7 @@
 
 /*
  * What `check` says about a pack's leftover settings on a vault whose settings moved to
- * _meta/vault-config.yaml (rung 3b). Each test runs at module level on a copy of the sample vault
+ * _meta/vault-config.yaml (ADR 0071). Each test runs at module level on a copy of the sample vault
  * that the pin's own move has already run on: contextFromSite builds the context, runChecks runs
  * the enabled checks. The command itself is driven in test/vault-settings-moved-cli.test.js; here
  * "check exits 2" is asserted as a finding of severity error.

@@ -11,7 +11,7 @@ const { resolveMachineDir, BACKUPS_DIRNAME, campaignSegment } = require('../conf
 
 /*
  * What `check` says about the pack's leftover settings on a vault whose settings moved to
- * _meta/vault-config.yaml (rung 3b). From the move on, the generator reads those settings from the
+ * _meta/vault-config.yaml (ADR 0071). From the move on, the generator reads those settings from the
  * yaml only; a value still in the pack's vault.config.json is not read. A GM runs
  * "gm-scriptorium carry" to fold the pack's values into the yaml. Until then:
  *

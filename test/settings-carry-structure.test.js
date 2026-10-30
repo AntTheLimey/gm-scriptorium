@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Structural pins for the carry (rung 3b). The pin's move code can write the settings files, so:
+ * Structural pins for the carry (ADR 0071). The pin's move code can write the settings files, so:
  *
  *   1. only src/generator/pinned.js names planMove or applyMove (the facade);
  *   2. only src/vault/settingscarry.js names applySettingsCarry or applySettingsChanges (the writers);

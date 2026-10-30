@@ -229,7 +229,7 @@ test('the generator files requiring child_process are exactly lib/image-optimize
   // Adding it is a maintainer decision, flagged in the pull request that made it; see
   // docs/decisions/0005-generator-pin.md (1.26.0 addendum).
   //
-  // lib/settings/move.js (the settings move, reached since the carry, rung 3b) takes spawnSync out of
+  // lib/settings/move.js (the settings move, reached since the carry) takes spawnSync out of
   // the module at load, for its `pinCheck`, which would run process.execPath on the pin's own
   // bin/gm-publish.js. In the packaged executable process.execPath is GM-Scriptorium itself, so that
   // must never run. The facade (src/generator/pinned.js, planSettingsCarry and applySettingsCarry)

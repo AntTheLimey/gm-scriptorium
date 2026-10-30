@@ -8,7 +8,7 @@ const { NV } = require(path.join(__dirname, '..', 'assets', 'admin', 'nav.js'));
 const { PK } = require(path.join(__dirname, '..', 'assets', 'admin', 'pack.js'));
 
 /*
- * The panel's words on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (rung 3b):
+ * The panel's words on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (ADR 0071):
  * the Title & tagline and vault-config screens' nav text, and the Title & tagline layouts' summary of
  * the other settings, must not send a GM to vault.config.json or vault-config.md for settings the site
  * now reads from the yaml. The old layout's words are pinned here too, unchanged. All literals.

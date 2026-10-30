@@ -11,7 +11,7 @@ const { moveVaultCopy, assertMovedLayout } = require('./helpers/moved-vault');
 const { applyChanges } = require('gm-apprentice-publish/lib/settings/write');
 
 /*
- * Each carry rule, proved on the built site (rung 3b). A fixture is a copy of test/fixtures/mini-vault
+ * Each carry rule, proved on the built site (ADR 0071). A fixture is a copy of test/fixtures/mini-vault
  * with its broken pages taken out (so a clean check is possible) and a few pages added that hold one
  * marker text each. The pin's own move has run on it WITHOUT folding the pack in, so the pack at
  * _meta/scriptorium/vault.config.json still holds settings the yaml lacks. Every case then builds

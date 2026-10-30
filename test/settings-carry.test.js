@@ -16,7 +16,7 @@ const packreplace = require('../src/vault/packreplace');
 const { VaultUnreachableError, ScriptoriumError } = require('../src/util/errors');
 
 /*
- * `gm-scriptorium carry` (rung 3b): folds the pack's leftover site settings into a moved vault's
+ * `gm-scriptorium carry` (ADR 0071): folds the pack's leftover site settings into a moved vault's
  * _meta/vault-config.yaml with the pin's own move code, then rewrites the pack without them.
  * Every case starts from a copy of the sample vault that the pin's own move has already run on,
  * with 'Pack Only Secret' added to the pack's hide list, which the yaml does not hold.
