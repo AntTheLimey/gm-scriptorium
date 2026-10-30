@@ -619,6 +619,20 @@ test('applyCarry with the default writePack rewrites the pack and reports both b
   });
 });
 
+test('applyCarry that rewrites the pack, given no packWriter, throws and writes nothing', () => {
+  withScratch((root) => {
+    const vault = setup(root);
+    const yamlBefore = fs.readFileSync(yamlOf(vault));
+    const packBefore = fs.readFileSync(packOf(vault));
+    const planned = planFor(root, vault);
+    assert.throws(() => applyCarry(planned, { machineDir: root, campaign: 't' }), /needs a packWriter \(programming error\)/);
+    assert.equal(Buffer.compare(fs.readFileSync(yamlOf(vault)), yamlBefore), 0);
+    assert.equal(Buffer.compare(fs.readFileSync(packOf(vault)), packBefore), 0);
+    assert.deepEqual(backupsIn(root), []);
+    discardCarry(planned);
+  });
+});
+
 test('a backup failure leaves everything unchanged', () => {
   withScratch((root) => {
     const vault = setup(root);

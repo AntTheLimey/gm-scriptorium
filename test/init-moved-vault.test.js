@@ -11,9 +11,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
+const { PassThrough } = require('stream');
 const path = require('path');
 
 const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
+const { runInitCommand } = require('../src/cli/init');
+const pinned = require('../src/generator/pinned');
+const { VaultUnreachableError } = require('../src/util/errors');
 const { stripEntriesForMovedVault } = require('../src/setup/scaffold');
 const { moveVaultCopy, assertMovedLayout, replaceChecked } = require('./helpers/moved-vault');
 
@@ -273,4 +277,61 @@ test('a setting the vault cannot take stays in the pack when the pack is made', 
   assert.equal(kept.siteTitle, 'T');
   assert.deepEqual(kept.backend, { inbox: false });
   assert.ok(!('folderMap' in kept));
+});
+
+/** init in this process, on a moved vault, with answers given by --yes. */
+async function initInProcess(root, vault) {
+  const configPath = path.join(root, 'config.toml');
+  const output = { isTTY: false, write: () => true };
+  try {
+    const result = await runInitCommand(
+      { config: configPath, name: 'x', vault, out: path.join(root, 'site'), yes: true },
+      [],
+      { input: new PassThrough(), output },
+    );
+    return { code: result.exitCode };
+  } catch (err) {
+    if (err instanceof VaultUnreachableError) return { code: 3, err };
+    throw err;
+  }
+}
+
+test('when the vault settings cannot be written, init exits 3, says to run the command again, and writes no pack', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-initfail-'));
+  const real = pinned.applySettingsChanges;
+  try {
+    const vault = movedNoPack(root);
+    pinned.applySettingsChanges = () => {
+      throw new Error('EACCES: permission denied');
+    };
+    const res = await initInProcess(root, vault);
+    pinned.applySettingsChanges = real;
+    assert.equal(res.code, 3);
+    assert.match(res.err.message, /^The site title and folder map could not be set in the vault's settings file \(EACCES: permission denied\)\. Nothing else was written\. Run the command again once the file can be written\./);
+    assert.ok(!/gm-scriptorium carry|still in/.test(res.err.message), res.err.message);
+    assert.ok(!fs.existsSync(path.join(vault, '_meta', 'scriptorium')));
+  } finally {
+    pinned.applySettingsChanges = real;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a setting the vault settings cannot take stays in the pack init makes, with its value', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-initkeep-'));
+  const real = pinned.readVaultConfigTemplate;
+  try {
+    const vault = movedNoPack(root);
+    // A stand-in template that carries one setting the pin cannot move into the vault's settings.
+    pinned.readVaultConfigTemplate = () => JSON.stringify({ ...JSON.parse(real()), footer: 'Typed footer' });
+    const res = await initInProcess(root, vault);
+    pinned.readVaultConfigTemplate = real;
+    assert.equal(res.code, 0);
+    const pack = JSON.parse(fs.readFileSync(packJsonOf(vault), 'utf8'));
+    assert.equal(pack.footer, 'Typed footer');
+    assert.ok(!('siteTitle' in pack) && !('folderMap' in pack));
+    assert.match(fs.readFileSync(yamlOf(vault), 'utf8'), /^ {2}title: "?The Long Lease"?$/m);
+  } finally {
+    pinned.readVaultConfigTemplate = real;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
