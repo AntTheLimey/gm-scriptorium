@@ -5,7 +5,7 @@ const respond = require('../respond');
 const body = require('../body');
 const packfiles = require('../packfiles');
 const packedit = require('../packedit');
-const { runExclusive } = require('../context');
+const { runExclusive, refreshSettingsLayout } = require('../context');
 const { replacePackFile, PackChangedError } = require('../../vault/packreplace');
 // Called through the module object (packwrite.createPackEntries), not destructured, so a test
 // can patch it to simulate the FR22 EEXIST race deterministically (the same reason
@@ -22,6 +22,9 @@ const { stripBom } = require('../../util/bom');
 // to.
 const pinned = require('../../generator/pinned');
 const freshness = require('../freshness');
+
+const TITLE_MOVED =
+  "This campaign's title is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.";
 
 /*
  * Phase 8 slice S3 (FR15-FR24, SD-5 through SD-10). The panel's only edit path: POST
@@ -267,6 +270,13 @@ async function runSave(req, res, ctx, endpoint) {
     return;
   }
 
+  // 2b. A setting the vault's own settings file now holds (rung 3b): saving it to the pack would be
+  // ignored by the build, so it is refused, dry run or not, and the pack is left as it is.
+  if (endpoint.movedRefusal && refreshSettingsLayout(ctx) === 'new') {
+    sendJson(res, 409, { error: 'settings-moved', message: endpoint.movedRefusal });
+    return;
+  }
+
   // 3. Fields.
   let fields;
   try {
@@ -359,6 +369,7 @@ async function saveSettings(req, res, ctx) {
     allowedKeys: ['siteTitle', 'baseSha256', 'dryRun'],
     baseShaAllowsNull: false,
     requireAtLeastOneOf: ['siteTitle'],
+    movedRefusal: TITLE_MOVED,
     validateFields: (parsed) => {
       const fields = {};
       if (Object.prototype.hasOwnProperty.call(parsed, 'siteTitle')) fields.siteTitle = validateTitle(parsed.siteTitle);

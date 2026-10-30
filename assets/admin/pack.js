@@ -1162,6 +1162,118 @@
     };
   }
 
+  // -- The carry on a moved vault (rung 3b) ---------------------------------------------------------
+  //
+  // A vault whose settings gm-apprentice moved to _meta/vault-config.yaml no longer reads the pack's
+  // title, folder map or hide lists. The screen asks the server what the carry would move (a dry run of
+  // POST /api/settings/carry), shows those lines, and offers the carry. The result is kept here, by
+  // campaign, so the re-render that follows the state reload still shows it.
+
+  var carryResult = null; // { campaign, lines, backups } from the last carry this page ran
+
+  function linesList(lines, part) {
+    var ul = el('ul');
+    ul.className = 'tt-carry-lines';
+    if (part) ul.setAttribute('data-part', part);
+    lines.forEach(function (line) {
+      var li = el('li');
+      setText(li, line);
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  function buildCarrySection(state) {
+    var section = el('section');
+    section.className = 'tt-carry';
+    section.setAttribute('data-part', 'carry');
+    section.setAttribute('aria-labelledby', 'tt-carry-h');
+    section.hidden = true;
+    var h = el('h2');
+    h.id = 'tt-carry-h';
+    setText(h, 'Settings the pack still holds');
+    section.appendChild(h);
+
+    if (carryResult && carryResult.campaign === state.campaign) {
+      section.hidden = false;
+      var done = el('p');
+      done.setAttribute('role', 'status');
+      setText(done, "The settings were carried into the vault's settings file.");
+      section.appendChild(done);
+      section.appendChild(linesList(carryResult.lines, 'carry-result'));
+      var kept = el('p');
+      kept.className = 'a1-hint';
+      setText(kept, 'Copies of both files as they were:');
+      section.appendChild(kept);
+      var backups = [carryResult.backups.yaml];
+      if (carryResult.backups.pack) backups.push(carryResult.backups.pack);
+      section.appendChild(linesList(backups, 'carry-backups'));
+    }
+
+    var planBox = el('div');
+    section.appendChild(planBox);
+    var outcome = el('p');
+    outcome.setAttribute('role', 'alert');
+    outcome.hidden = true;
+    section.appendChild(outcome);
+
+    function showProblem(result) {
+      section.hidden = false;
+      outcome.hidden = false;
+      var b = result && result.body;
+      var busy = b && b.error === 'busy' ? 'Another job is running in the panel. Open this screen again when it ends.' : null;
+      setText(outcome, busy || (b && b.message) || 'The carry could not run. Reload the panel and try again.');
+    }
+
+    api('/api/settings/carry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dryRun: true }) })
+      .then(function (result) {
+        if (!result.ok || !result.body) {
+          showProblem(result);
+          return;
+        }
+        var plan = result.body;
+        if (plan.lines.length === 0 && plan.state !== 'ready') return;
+        section.hidden = false;
+        var intro = el('p');
+        setText(
+          intro,
+          plan.state === 'ready'
+            ? "This vault keeps its settings in _meta/vault-config.yaml, so the site no longer reads these from the pack. Carrying them moves them into that file. Both files are copied outside the vault first."
+            : 'These stay in the pack:',
+        );
+        planBox.appendChild(intro);
+        planBox.appendChild(linesList(plan.lines, 'carry-lines'));
+        if (plan.state !== 'ready') return;
+        var btn = el('button');
+        btn.type = 'button';
+        btn.className = 'a1-btn primary';
+        setText(btn, 'Carry these settings');
+        btn.addEventListener('click', function () {
+          btn.disabled = true;
+          outcome.hidden = true;
+          api('/api/settings/carry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dryRun: false, baseSha256: plan.baseSha256 }) })
+            .then(function (res) {
+              if (!res.ok || !res.body || res.body.ok !== true) {
+                btn.disabled = false;
+                showProblem(res);
+                return;
+              }
+              carryResult = { campaign: state.campaign, lines: res.body.lines, backups: res.body.backups };
+              store.load();
+            })
+            .catch(function () {
+              btn.disabled = false;
+              showProblem(null);
+            });
+        });
+        planBox.appendChild(btn);
+      })
+      .catch(function () {
+        showProblem(null);
+      });
+    return section;
+  }
+
   function buildTitleScreen(mount, state) {
     clear(mount);
 
@@ -1174,11 +1286,15 @@
       mount.appendChild(err);
     }
 
-    var initialTitle = vcj.siteTitle === undefined || vcj.siteTitle === null ? '' : vcj.siteTitle;
+    // Rung 3b: on a vault whose settings moved to _meta/vault-config.yaml, the title and tagline are the
+    // yaml's, shown read-only. A title the yaml does not set shows empty with a note, never the pack's.
+    var moved = state.settingsLayout === 'new';
+    var vs = state.vaultSettings || {};
+    var initialTitle = moved ? vs.title || '' : vcj.siteTitle === undefined || vcj.siteTitle === null ? '' : vcj.siteTitle;
     // V1e-1 (SD-7, D-20): the tagline now comes from vault-config.md's publish.theme.tagline,
     // never from the dead vault.config.json landingTagline key.
-    var initialTagline = vcf.tagline === undefined || vcf.tagline === null ? '' : vcf.tagline;
-    var taglineEditable = Boolean(vcf.editable);
+    var initialTagline = moved ? vs.tagline || '' : vcf.tagline === undefined || vcf.tagline === null ? '' : vcf.tagline;
+    var taglineEditable = Boolean(vcf.editable) && !moved;
 
     // ---------------------------------------------------------------------------------------
     // SD-29: the persistent fields block, built once per render and re-parented (never rebuilt)
@@ -1206,11 +1322,25 @@
     titleInput.type = 'text';
     titleInput.className = 'a1-in tt-big';
     titleInput.value = initialTitle;
+    titleInput.readOnly = moved;
     titleField.appendChild(titleInput);
     var titleHint = el('p');
     titleHint.className = 'a1-hint';
-    setText(titleHint, 'In every browser tab, the top bar of every page, and large on the landing page. Short reads best.');
+    if (moved) {
+      titleHint.setAttribute('data-part', 'title-note');
+      titleHint.id = 'pack-title-note';
+      titleInput.setAttribute('aria-describedby', 'pack-title-note');
+      setText(titleHint, vs.titleNote || '');
+    } else {
+      setText(titleHint, 'In every browser tab, the top bar of every page, and large on the landing page. Short reads best.');
+    }
     titleField.appendChild(titleHint);
+    if (moved && vs.error) {
+      var vsError = el('p');
+      vsError.className = 'pack-error';
+      setText(vsError, vs.error);
+      titleField.appendChild(vsError);
+    }
     var titleWarn = el('p');
     titleWarn.className = 'tt-warn';
     titleWarn.hidden = true;
@@ -1367,7 +1497,7 @@
     reviewBtn.type = 'button';
     reviewBtn.className = 'a1-btn primary';
     setText(reviewBtn, 'Review and save');
-    var disabledReason = Boolean(vcj.error) || !state.writable;
+    var disabledReason = Boolean(vcj.error) || !state.writable || moved;
     titleReviewBtn = reviewBtn;
     titleOwnDisabled = disabledReason;
     reviewBtn.disabled = disabledReason || store.isBusy();
@@ -1452,6 +1582,7 @@
     var tt2 = buildTt2(summaryRowsList, heroRel);
     var tt3 = buildTt3(vcj, cardModelList, heroRel);
 
+    if (moved) mount.appendChild(buildCarrySection(state));
     mount.appendChild(tt1.section);
     mount.appendChild(tt2.section);
     mount.appendChild(tt3.section);

@@ -185,7 +185,7 @@ test('(j) a tagline save in the mixed state answers 422 unsupported, with the fi
     assert.deepEqual(JSON.parse(res.body.toString('utf8')), {
       error: 'unsupported',
       message:
-        'refusing to edit vault-config.md: this vault has _meta/vault-config.yaml, which the gm-apprentice plugin reads instead of vault-config.md, so the panel won\'t change vault-config.md. Nothing was changed.',
+        "This campaign's tagline is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.",
     });
     assert.equal(fs.readFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), 'utf8'), MD_TEXT);
     assert.ok(!fs.existsSync(backupDir) || fs.readdirSync(backupDir).length === 0, 'no backup was written');

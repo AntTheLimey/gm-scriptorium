@@ -261,7 +261,7 @@ test('(g) checkTarget refuses a mixed vault with a ConfigError, not a "changed" 
       assert.ok(!(err instanceof VaultConfigChangedError));
       assert.equal(
         err.message,
-        'refusing to edit vault-config.md: this vault has _meta/vault-config.yaml, which the gm-apprentice plugin reads instead of vault-config.md, so the panel won\'t change vault-config.md. Nothing was changed.',
+        "This campaign's settings are set in the vault's settings file (_meta/vault-config.yaml). Editing them here arrives in the next update; change them in that file for now.",
       );
       assert.equal(err.path, path.join(dir, '_meta', 'vault-config.yaml'));
       return true;
@@ -279,7 +279,7 @@ test('(g) checkTarget refuses a moved vault with the same ConfigError, not "chan
       assert.ok(!(err instanceof VaultConfigChangedError));
       assert.equal(
         err.message,
-        'refusing to edit vault-config.md: this vault has _meta/vault-config.yaml, which the gm-apprentice plugin reads instead of vault-config.md, so the panel won\'t change vault-config.md. Nothing was changed.',
+        "This campaign's settings are set in the vault's settings file (_meta/vault-config.yaml). Editing them here arrives in the next update; change them in that file for now.",
       );
       return true;
     },
@@ -334,7 +334,7 @@ test('(h) replaceVaultConfigMd on a mixed vault refuses before any backup, temp 
         },
         campaign: 'camp',
       }),
-    (err) => err instanceof ConfigError && /^refusing to edit vault-config\.md: this vault has _meta\/vault-config\.yaml/.test(err.message),
+    (err) => err instanceof ConfigError && err.message === "This campaign's settings are set in the vault's settings file (_meta/vault-config.yaml). Editing them here arrives in the next update; change them in that file for now.",
   );
   assert.equal(backupCalls, 0);
   assert.deepEqual(fs.readdirSync(metaDir).sort(), listingBefore);
