@@ -23,8 +23,8 @@ const { stripBom } = require('../../util/bom');
 const pinned = require('../../generator/pinned');
 const freshness = require('../freshness');
 
-const TITLE_MOVED =
-  "This campaign's title is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.";
+// The one text for a title that lives in the vault's settings file; the carry handler keeps it.
+const { TITLE_MOVED } = require('./carry');
 
 /*
  * Phase 8 slice S3 (FR15-FR24, SD-5 through SD-10). The panel's only edit path: POST
