@@ -103,8 +103,8 @@ path for good, use `config add` or `config edit`. The settings are on
 | `carry --yes` | no | *Since 0.6.0.* Asks no question and carries what the plan shows. |
 | `check --graph` | no | Also runs the optional relationship graph checks. |
 | `build --force-out` | no | *Since 0.5.0.* Builds into the site config's own `outputDir`. |
-| `build --force-check` | no | *Since 0.5.0.* Builds even though the check found errors. The output-leak scan still refuses a leak. |
-| `build --no-check` | no | Skips the check step. |
+| `build --force-check` | no | *Since 0.5.0.* Builds even though the check found errors. The output-leak scan still refuses a leak. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, it does not build past a hide-list entry or a folder map that only the campaign pack holds: the build exits 3 until they are carried. |
+| `build --no-check` | no | Skips the check step. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, the build still refuses, with exit 3, while a hide-list entry or a folder map is only in the campaign pack. |
 | `serve --build` | no | Builds the site first. |
 | `serve --port` | yes | The port to listen on, 1 to 65535. Plain `serve` also accepts 0 for any free port, and uses the campaign's `serve_port` or 8080 when you give none. With `--admin`, leave it out and a free port is chosen for you. |
 | `serve --host` | yes | Listens on another address. This exposes the site beyond this computer. `serve --admin` refuses it. |

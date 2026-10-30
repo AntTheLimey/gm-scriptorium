@@ -67,7 +67,7 @@ test('check on a moved vault exits 0', () => {
   });
 });
 
-test('a pack folder map the yaml lacks gives check exit 2 and build exit 2 with nothing written, and --force-check builds', () => {
+test('a pack folder map the yaml lacks gives check exit 2, build exit 2, and build --force-check exit 3, with nothing written', () => {
   withScratch((root) => {
     moved(root, { withMap: false });
     const checked = run(root, ['check']);
@@ -76,7 +76,10 @@ test('a pack folder map the yaml lacks gives check exit 2 and build exit 2 with 
     const built = run(root, ['build']);
     assert.equal(built.code, 2, built.all);
     assert.ok(!fs.existsSync(path.join(root, 'out')) && !fs.existsSync(path.join(root, 'site')), 'a refused build writes no output folder');
-    assert.equal(run(root, ['build', '--force-check']).code, 0);
+    const forced = run(root, ['build', '--force-check']);
+    assert.equal(forced.code, 3, forced.all);
+    assert.match(forced.all, /the build no longer reads them there: folderMap\. Run "gm-scriptorium carry t"/);
+    assert.ok(!fs.existsSync(path.join(root, 'out')) && !fs.existsSync(path.join(root, 'site')), 'a refused forced build writes no output folder');
   });
 });
 
@@ -146,13 +149,14 @@ test('a pack hide entry the yaml lacks gives check exit 2, and build exit 2 with
   });
 });
 
-test('build --force-check builds past the uncarried hide entry', () => {
+test('build --force-check does not build past the uncarried hide entry: exit 3, nothing written', () => {
   withScratch((root) => {
     const vault = moved(root);
     addUncarriedHide(vault, 'Secret Plans');
     const res = run(root, ['build', '--force-check']);
-    assert.equal(res.code, 0, res.all);
-    assert.equal(fs.existsSync(path.join(root, 'site', 'index.html')), true);
+    assert.equal(res.code, 3, res.all);
+    assert.match(res.all, /the build no longer reads them there: excludeSections \("Secret Plans"\)\./);
+    assert.equal(fs.existsSync(path.join(root, 'site')), false);
   });
 });
 

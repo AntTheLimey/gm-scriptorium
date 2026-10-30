@@ -103,8 +103,8 @@ const packOf = (vault) => path.join(vault, '_meta', 'scriptorium', 'vault.config
 const readPack = (vault) => JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
 
 /**
- * The three states of a hide rule: before the carry (check and build refuse, the override lets the
- * marker through), then after it (clean, and the marker is in no output file).
+ * The three states of a hide rule: before the carry (check and build refuse, and so does a build with
+ * --force-check, with exit 3: ADR 0071, section 12), then after it (clean, and the marker is in no output file).
  */
 function assertHideRule({ root, site, vault }, marker, packKey) {
   const finding = `${packKey} in the pack hides more than the vault's settings do`;
@@ -117,8 +117,9 @@ function assertHideRule({ root, site, vault }, marker, packKey) {
   assert.ok(!fs.existsSync(site), 'a refused build must write nothing');
 
   const forced = run(root, ['build', '--force-check']);
-  assert.equal(forced.code, 0, forced.all);
-  assert.ok(filesHolding(site, marker).length > 0, `with --force-check the vault's own settings win, so ${marker} is published`);
+  assert.equal(forced.code, 3, forced.all);
+  assert.match(forced.all, new RegExp(`still holds settings that _meta/vault-config\\.yaml does not, and the build no longer reads them there: ${packKey} \\(`));
+  assert.ok(!fs.existsSync(site), `--force-check does not publish ${marker} either: nothing is written`);
 
   const carried = run(root, ['carry', '--yes']);
   assert.equal(carried.code, 0, carried.all);
@@ -155,8 +156,10 @@ test('stricter callouts: the pack hides the gm callout, the vault none; the mark
     assert.equal(checked.code, 2, checked.all);
     assert.ok(checked.out.includes('ERROR config/pack-hiding-not-carried  excludeCallouts in the pack hides more than the vault\'s settings do'), checked.out);
     assert.equal(run(root, ['build']).code, 2);
-    assert.equal(run(root, ['build', '--force-check']).code, 0);
-    assert.notDeepEqual(filesHolding(f.site, CALLOUT_MARKER), [], 'before the carry the gm callout is published');
+    const forced = run(root, ['build', '--force-check']);
+    assert.equal(forced.code, 3, forced.all);
+    assert.ok(forced.all.includes('the build no longer reads them there: excludeCallouts ("gm").'), forced.all);
+    assert.ok(!fs.existsSync(f.site), 'before the carry the gm callout is not published: nothing is written');
 
     assert.equal(run(root, ['carry', '--yes']).code, 0);
     assert.ok(!('excludeCallouts' in readPack(f.vault)));
@@ -207,9 +210,9 @@ test('a key the vault lacks: the pack folder map puts NPCs at "people"; the buil
     assert.equal(plain.code, 2, plain.all);
     assert.ok(!fs.existsSync(f.site), 'a refused build must write nothing');
     const forced = run(root, ['build', '--force-check']);
-    assert.equal(forced.code, 0, forced.all);
-    assert.deepEqual(filesHolding(f.site, 'Runs the general store.'), []);
-    assert.deepEqual(filesUnder(f.site).filter((p) => /alice/i.test(p)), []);
+    assert.equal(forced.code, 3, forced.all);
+    assert.ok(forced.all.includes('the build no longer reads them there: folderMap. Run "gm-scriptorium carry t"'), forced.all);
+    assert.ok(!fs.existsSync(f.site), 'a near-empty site is not published over the players\' one: nothing is written');
 
     const carried = run(root, ['carry', '--yes']);
     assert.equal(carried.code, 0, carried.all);

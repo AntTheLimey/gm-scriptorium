@@ -62,6 +62,17 @@ function copyBadYamlVault(root) {
   return vaultPath;
 }
 
+/** A moved copy of the sample vault whose pack still holds a hide entry its vault-config.yaml lacks (not carried). */
+function copyUncarriedVault(root) {
+  const { vaultPath } = moveVaultCopy(SAMPLE, root);
+  const pack = path.join(vaultPath, '_meta', 'scriptorium', 'vault.config.json');
+  const json = JSON.parse(fs.readFileSync(pack, 'utf8'));
+  json.excludeSections.push('Uncarried Secret');
+  fs.writeFileSync(pack, JSON.stringify(json, null, 2));
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${vaultPath}'\noutput = '${path.join(root, 'site')}'\n`);
+  return vaultPath;
+}
+
 /** A moved copy of the sample vault whose settings file already sets a site title. */
 function copyTitledMovedVault(root) {
   const { vaultPath } = moveVaultCopy(SAMPLE, root);
@@ -141,6 +152,8 @@ const CASES = [
   ['build --force-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--force-check']), 3, /build stopped/],
   ['build --no-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--no-check']), 3, /build stopped/],
   ['build --force-check with a vault-config.yaml that is not valid YAML', (r) => (copyBadYamlVault(r), ['build', '--force-check']), 3, /^.*_meta\/vault-config\.yaml is not valid YAML/m],
+  ['build --force-check on a moved vault whose pack holds settings the yaml lacks', (r) => (copyUncarriedVault(r), ['build', '--force-check']), 3, /^campaign "t": .* still holds settings that _meta\/vault-config\.yaml does not, and the build no longer reads them there: .*excludeSections \("Uncarried Secret"\)\. Run "gm-scriptorium carry t" to move them into _meta\/vault-config\.yaml\. Nothing was written\.$/m],
+  ['build --no-check on a moved vault whose pack holds settings the yaml lacks', (r) => (copyUncarriedVault(r), ['build', '--no-check']), 3, /^campaign "t": .* still holds settings that _meta\/vault-config\.yaml does not, and the build no longer reads them there: .*excludeSections \("Uncarried Secret"\)\. Run "gm-scriptorium carry t" to move them into _meta\/vault-config\.yaml\. Nothing was written\.$/m],
   ['build --no-check with a vault-config.yaml that is not valid YAML', (r) => (copyBadYamlVault(r), ['build', '--no-check']), 3, /^.*_meta\/vault-config\.yaml is not valid YAML/m],
   ['build --force-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--force-check']), 3, /where the site is built or what it keeps/],
   ['build --no-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--no-check']), 3, /where the site is built or what it keeps/],

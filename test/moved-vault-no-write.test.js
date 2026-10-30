@@ -12,9 +12,12 @@ const { moveVaultCopy } = require('./helpers/moved-vault');
 /*
  * `check` and `build` never write to the vault, whichever layout its settings are in. For a moved
  * vault and a mixed one (both settings files), with a pack holding a hide entry the yaml lacks,
- * this hashes every file under the vault before and after `check`, `build` (which stops at the
- * check step) and `build --force-check` (which builds), and asserts the two listings are equal:
- * no file changed, added or removed. SCRIPTORIUM_TEST_BIN runs this against the packaged binary.
+ * this hashes every file under the vault before and after `check` and `build` (which stops at the
+ * check step), and `build --force-check` and `build --no-check` (which the build itself refuses
+ * until the pack is carried, ADR 0071 section 12), and asserts the two listings are equal: no file
+ * changed, added or removed. Then the GM's carry runs (it writes the vault, on purpose), and the
+ * same holds for `build --force-check` and `build --no-check` that do build. SCRIPTORIUM_TEST_BIN
+ * runs this against the packaged binary.
  */
 
 /** Sorted "relative path : sha256" lines for every file under dir; folders as "path/". */
@@ -47,7 +50,7 @@ function setup(root, state) {
 }
 
 for (const state of ['moved', 'mixed']) {
-  test(`check, build and build --force-check leave a ${state} vault exactly as it was`, () => {
+  test(`check, build, build --force-check and build --no-check leave a ${state} vault exactly as it was`, () => {
     withScratch((root) => {
       const vault = setup(root, state);
       const before = snapshot(vault);
@@ -59,10 +62,22 @@ for (const state of ['moved', 'mixed']) {
       assert.equal(run(root, ['build']).code, 2);
       assert.deepEqual(snapshot(vault), before, 'build wrote to the vault');
 
-      const forced = run(root, ['build', '--force-check']);
-      assert.equal(forced.code, 0, forced.all);
-      assert.equal(fs.existsSync(path.join(root, 'site', 'index.html')), true);
-      assert.deepEqual(snapshot(vault), before, 'build --force-check wrote to the vault');
+      for (const flag of ['--force-check', '--no-check']) {
+        const refused = run(root, ['build', flag]);
+        assert.equal(refused.code, 3, refused.all);
+        assert.equal(fs.existsSync(path.join(root, 'site')), false, `a refused build ${flag} writes no site`);
+        assert.deepEqual(snapshot(vault), before, `a refused build ${flag} wrote to the vault`);
+      }
+
+      const carried = run(root, ['carry', '--yes']);
+      assert.equal(carried.code, 0, carried.all);
+      const afterCarry = snapshot(vault);
+      for (const flag of ['--force-check', '--no-check']) {
+        const built = run(root, ['build', flag]);
+        assert.equal(built.code, 0, built.all);
+        assert.equal(fs.existsSync(path.join(root, 'site', 'index.html')), true);
+        assert.deepEqual(snapshot(vault), afterCarry, `build ${flag} wrote to the vault`);
+      }
     });
   });
 }

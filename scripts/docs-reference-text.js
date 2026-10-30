@@ -702,7 +702,7 @@ module.exports = deepFreeze({
       whatToDo: 'Run `gm-scriptorium check` and fix what it lists. A refused `build` writes nothing.',
     },
     3: {
-      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered. *Since 0.5.0.* A `build --force-check` or `build --no-check` that stops because a setting in the vault or its site file cannot be read also exits 3; fix the setting the message names.',
+      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered. *Since 0.5.0.* A `build --force-check` or `build --no-check` that stops because a setting in the vault or its site file cannot be read also exits 3; fix the setting the message names. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, a `build --force-check` or `build --no-check` also exits 3 while the campaign pack still holds a hide-list entry or a folder map the yaml lacks. Run `gm-scriptorium carry <campaign>`, or move them into the yaml yourself when the message says to.',
     },
     4: {
       whatToDo: 'Check that this computer can reach GitHub, then run `gm-scriptorium update --check` again.',
@@ -878,10 +878,12 @@ module.exports = deepFreeze({
       since: '0.5.0',
     },
     'build --force-check': {
-      what: 'Builds even though the check found errors. The output-leak scan still refuses a leak.',
+      what: 'Builds even though the check found errors. The output-leak scan still refuses a leak. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, it does not build past a hide-list entry or a folder map that only the campaign pack holds: the build exits 3 until they are carried.',
       since: '0.5.0',
     },
-    'build --no-check': { what: 'Skips the check step.' },
+    'build --no-check': {
+      what: 'Skips the check step. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, the build still refuses, with exit 3, while a hide-list entry or a folder map is only in the campaign pack.',
+    },
     'serve --build': { what: 'Builds the site first.' },
     'serve --port': {
       what: 'The port to listen on, 1 to 65535. Plain `serve` also accepts 0 for any free port, and uses the campaign\'s `serve_port` or 8080 when you give none. With `--admin`, leave it out and a free port is chosen for you.',
@@ -1095,8 +1097,8 @@ module.exports = deepFreeze({
     },
     'config/pack-hiding-not-carried': {
       since: '0.6.0',
-      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still hides something the vault\'s own list does not: an `excludeSections`, `excludeFields`, `excludeDirs` or `excludeCallouts` entry. The generator no longer reads those keys from the pack, so the section, field, folder or callout the entry hid would be published. The message names the missing entries. It is an ERROR.',
-      action: 'Run `gm-scriptorium carry <campaign>` to move the entries into the vault\'s settings. Or add them to the matching `player_site.hide` list in `_meta/vault-config.yaml` yourself.',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still hides something the vault\'s own list does not: an `excludeSections`, `excludeFields`, `excludeDirs` or `excludeCallouts` entry. The generator no longer reads those keys from the pack, so the section, field, folder or callout the entry hid would be published. The message names the missing entries. It is an ERROR. A build that skips the check, or overrides it, does not get past it either: the build itself refuses with exit 3 and writes nothing.',
+      action: 'Run `gm-scriptorium carry <campaign>` to move the entries into the vault\'s settings. Or add them to the matching `player_site.hide` list in `_meta/vault-config.yaml` yourself. When the campaign uses a `site_config`, or a pack outside the vault, the carry cannot rewrite that file and the message says to move them by hand.',
     },
     'config/pack-setting-not-carried': {
       since: '0.6.0',
@@ -1105,8 +1107,8 @@ module.exports = deepFreeze({
     },
     'config/folder-map-not-carried': {
       since: '0.6.0',
-      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but they set no folder map, and the campaign pack\'s `vault.config.json` still has one. The generator does not read the pack\'s folder map, so it would map no folder and publish almost nothing, with no error. It is an ERROR so that a build cannot replace your players\' site with an empty one. If the vault\'s settings already hold a folder map, this is not reported.',
-      action: 'Run `gm-scriptorium carry <campaign>` to move the folder map into the vault\'s settings, or set `player_site.folder_map` in `_meta/vault-config.yaml` yourself.',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but they set no folder map, and the campaign pack\'s `vault.config.json` still has one. The generator does not read the pack\'s folder map, so it would map no folder and publish almost nothing, with no error. It is an ERROR so that a build cannot replace your players\' site with an empty one, and a build that skips the check, or overrides it, refuses too, with exit 3. If the vault\'s settings already hold a folder map, this is not reported.',
+      action: 'Run `gm-scriptorium carry <campaign>` to move the folder map into the vault\'s settings, or set `player_site.folder_map` in `_meta/vault-config.yaml` yourself. When the campaign uses a `site_config`, or a pack outside the vault, the carry cannot rewrite that file and the message says to move it by hand.',
     },
     'config/pack-setting-differs': {
       since: '0.6.0',

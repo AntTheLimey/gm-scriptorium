@@ -1,9 +1,12 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { isDeepStrictEqual } = require('util');
 const { createFinding } = require('../report/finding');
 const { readSettingsFiles } = require('../vault/publishset');
 const pinned = require('../generator/pinned');
+const { platformFoldsCase } = require('../vault/exclusions');
 
 /*
  * What `check` says about the pack's leftover settings on a vault whose settings moved to
@@ -29,7 +32,41 @@ const pinned = require('../generator/pinned');
  * carry. Nothing here writes to the vault.
  */
 
-const carryHint = (campaign) => `Run "gm-scriptorium carry ${campaign}" to move it into the vault's settings.`;
+/** The real path of a file, or its resolved path when it cannot be resolved. */
+function realOrResolved(p) {
+  try {
+    return fs.realpathSync.native(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+/**
+ * Is `packConfigPath` the pack in this vault (`<vault>/_meta/scriptorium/vault.config.json`)? The carry
+ * rewrites only that file, so only for it can `check` and `build` name the carry command. A campaign
+ * on `site_config`, or on a `pack` outside the vault, moves its settings by hand.
+ *
+ * @param {string} vaultPath
+ * @param {string|null|undefined} packConfigPath
+ * @returns {boolean}
+ */
+function isVaultPack(vaultPath, packConfigPath) {
+  if (!packConfigPath) return false;
+  const fold = (s) => (platformFoldsCase() ? s.toLowerCase() : s);
+  const expected = path.join(realOrResolved(path.join(realOrResolved(vaultPath), '_meta', 'scriptorium')), 'vault.config.json');
+  return fold(realOrResolved(packConfigPath)) === fold(expected);
+}
+
+/** What to do about one pack setting the vault's settings lack: the carry, or a hand edit when the carry cannot reach the file. */
+function carryHint(campaign, vaultPath, packConfigPath) {
+  if (vaultPath && !isVaultPack(vaultPath, packConfigPath)) {
+    return 'Move it into _meta/vault-config.yaml by hand: the carry only rewrites the pack in the vault.';
+  }
+  return `Run "gm-scriptorium carry ${campaign}" to move it into the vault's settings.`;
+}
+
+/** The vault's settings file sets this setting: readably ('file'), or with a value the pin cannot read ('fault'). The carry never overwrites either. */
+const vaultSets = (origin) => origin === 'file' || origin === 'fault';
 
 /** The value at a dotted name in a nested object, or undefined. */
 function valueAt(obj, dotted) {
@@ -137,6 +174,45 @@ function unheldPackSettings(vaultPath, packConfig, files) {
   return { faults, unheld };
 }
 
+/**
+ * The pack settings a moved vault must not be built without (ADR 0071, section 12): a hide-list entry
+ * the vault's settings lack (the pin's own stop level), and a folder map the vault's settings do not
+ * set. Built without them, the site would publish what the pack hid, or map no folder at all. `build`
+ * refuses on these whatever its flags, because `check` does not run under --no-check and is
+ * overridden by --force-check.
+ *
+ * @param {{ fault: object, origin: string }[]} unheld from unheldPackSettings
+ * @returns {{ fault: object, vaultValue: *, origin: string }[]}
+ */
+function buildBlockers(unheld) {
+  return unheld.filter((u) => u.fault.level === 'stop' || (u.fault.name === 'folderMap' && !vaultSets(u.origin)));
+}
+
+/**
+ * The one line `build` refuses with: the pack's path, each entry the vault's settings lack, and what
+ * to do (the carry, or a hand edit when the site config is not the pack in the vault).
+ *
+ * @param {{ campaign: string, vaultPath: string, packConfigPath: string, blockers: object[] }} args
+ * @returns {string}
+ */
+function packNotCarriedMessage({ campaign, vaultPath, packConfigPath, blockers }) {
+  const named = blockers.map(({ fault, vaultValue }) => {
+    if (fault.name === 'folderMap' && fault.level !== 'stop') return fault.name;
+    if (Array.isArray(fault.value)) {
+      const lacks = missingEntries(fault.name, fault.value, Array.isArray(vaultValue) ? vaultValue : [], vaultPath).map(String);
+      if (lacks.length) return `${fault.name} (${lacks.map((e) => `"${e}"`).join(', ')})`;
+    }
+    return `${fault.name} (${show(fault.value)})`;
+  });
+  const todo = isVaultPack(vaultPath, packConfigPath)
+    ? `Run "gm-scriptorium carry ${campaign}" to move them into _meta/vault-config.yaml.`
+    : 'Move them into _meta/vault-config.yaml by hand: the carry only rewrites the pack in the vault.';
+  return (
+    `campaign "${campaign}": ${packConfigPath} still holds settings that _meta/vault-config.yaml does not, ` +
+    `and the build no longer reads them there: ${named.join(', ')}. ${todo} Nothing was written.`
+  );
+}
+
 function computeCarryFindings(ctx) {
   if (ctx.settingsLayout !== 'new' || !ctx.rawSiteConfig) return [];
   const files = readSettingsFiles(ctx.vaultPath);
@@ -217,6 +293,10 @@ const only = (id) => (ctx) => carryFindings(ctx).filter((f) => f.id === id);
 module.exports = {
   isHeldByVault,
   unheldPackSettings,
+  buildBlockers,
+  packNotCarriedMessage,
+  isVaultPack,
+  vaultSets,
   carryHint,
   runPackHidingNotCarried: only('config/pack-hiding-not-carried'),
   runPackSettingNotCarried: only('config/pack-setting-not-carried'),

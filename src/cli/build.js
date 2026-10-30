@@ -9,7 +9,8 @@ const { NON_YAML_LANGUAGE_ID } = require('../checks/frontmatter');
 const { runAtomicBuild } = require('../build/run');
 const { siteConfigOutputDirCollision } = require('../build/plan');
 const { planThemeAssets } = require('../build/themeassets');
-const { computePublishedSet } = require('../vault/publishset');
+const { computePublishedSet, readSettingsFiles, isYamlParseError } = require('../vault/publishset');
+const { unheldPackSettings, buildBlockers, packNotCarriedMessage } = require('../checks/carry');
 const { VaultUnreachableError, ConfigError } = require('../util/errors');
 const { suggestedSlug } = require('../setup/foldermap');
 const { EXIT_CODES } = require('../util/exitcodes');
@@ -119,6 +120,35 @@ function renderErrorLine(re) {
   return `ERROR rendering ${re.outputPath}: ${re.message}`;
 }
 
+/**
+ * ADR 0071, section 12: on a moved vault the generator no longer reads the pack's hide lists or its
+ * folder map, and Scriptorium does not hand them to it. Until the GM carries them into
+ * _meta/vault-config.yaml, a build would publish what only the pack hid, or a site with no folder
+ * mapped. `check` reports these as errors, but --no-check skips it and --force-check overrides it, so
+ * the build refuses here as well, whatever its flags: exit 3, one line, nothing written. On the old
+ * layout the generator's own settings stop is not forceable either.
+ *
+ * A vault-config.yaml the pin cannot parse is left to the generator's own stop, which says so.
+ *
+ * @throws {VaultUnreachableError} reason 'pack-not-carried'
+ */
+function refuseUncarriedPack({ vaultPath, rawSiteConfig, packConfigPath, campaign }) {
+  let unheld;
+  try {
+    ({ unheld } = unheldPackSettings(vaultPath, rawSiteConfig, readSettingsFiles(vaultPath)));
+  } catch (err) {
+    if (isYamlParseError(err)) return;
+    throw err;
+  }
+  const blockers = buildBlockers(unheld);
+  if (blockers.length === 0) return;
+  throw new VaultUnreachableError(packNotCarriedMessage({ campaign, vaultPath, packConfigPath, blockers }), {
+    path: vaultPath,
+    campaign,
+    reason: 'pack-not-carried',
+  });
+}
+
 function baseEnvelope(campaign, vaultPath, outputPath, vaultMismatch, generatedAt) {
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -167,7 +197,8 @@ function baseEnvelope(campaign, vaultPath, outputPath, vaultMismatch, generatedA
  */
 function runBuildForContext(ctxInfo, flags) {
   const generatedAt = new Date().toISOString();
-  const { vaultPath, jsonConfig, rawSiteConfig, vaultMismatch, siteDir, packShadowed, packToml } = resolveVaultContext(ctxInfo);
+  const { vaultPath, jsonConfig, rawSiteConfig, settingsLayout, packConfigPath, vaultMismatch, siteDir, packShadowed, packToml } =
+    resolveVaultContext(ctxInfo);
   // ADR 0019, Structural decision 4: the asset step's FILE checks (P3a-FR06) run here, before
   // runAtomicBuild, so a refusal writes nothing -- sweepStaleSiblings never runs, and --force
   // never reaches planThemeAssets (only pack.toml's own SYNTAX validation, inside
@@ -294,6 +325,9 @@ function runBuildForContext(ctxInfo, flags) {
     // still refuse the build.
     lines.push('--no-check: skipped running check entirely (the staging output scan still ran; see below).');
   }
+
+  // ADR 0071, section 12: independent of --no-check and --force-check (plain build stops at the check first).
+  if (settingsLayout === 'new') refuseUncarriedPack({ vaultPath, rawSiteConfig, packConfigPath, campaign: ctxInfo.campaign });
 
   const result = runAtomicBuild({
     vaultPath,
