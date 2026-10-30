@@ -177,12 +177,15 @@ test('vault value wins: the yaml title "Vault Title" shows before and after the 
     const before = fs.readFileSync(path.join(f.site, 'index.html'), 'utf8');
     assert.ok(before.includes('Vault Title'));
     assert.ok(!before.includes('Pack Title'));
+    assert.deepEqual(filesHolding(f.site, 'Pack Title'), [], 'before the carry the pack title is in no output file');
 
     const carried = run(root, ['carry', '--yes']);
     assert.equal(carried.code, 0, carried.all);
     assert.ok(!('siteTitle' in readPack(f.vault)));
     fs.rmSync(f.site, { recursive: true, force: true });
-    const built = run(root, ['build', '--force-check']);
+    const checked = run(root, ['check']);
+    assert.equal(checked.code, 0, checked.all);
+    const built = run(root, ['build']);
     assert.equal(built.code, 0, built.all);
     const after = fs.readFileSync(path.join(f.site, 'index.html'), 'utf8');
     assert.ok(after.includes('Vault Title'));
