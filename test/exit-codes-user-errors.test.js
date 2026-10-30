@@ -6,7 +6,7 @@ const fs = require('fs');
 const net = require('net');
 const path = require('path');
 
-const { moveVaultCopy } = require('./helpers/moved-vault');
+const { moveVaultCopy, replaceYamlFolderMap } = require('./helpers/moved-vault');
 const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
 const { asPackProblem } = require('../src/cli/check');
 const { ConfigError } = require('../src/util/errors');
@@ -69,6 +69,14 @@ function copyUncarriedVault(root) {
   const json = JSON.parse(fs.readFileSync(pack, 'utf8'));
   json.excludeSections.push('Uncarried Secret');
   fs.writeFileSync(pack, JSON.stringify(json, null, 2));
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${vaultPath}'\noutput = '${path.join(root, 'site')}'\n`);
+  return vaultPath;
+}
+
+/** A moved copy of the sample vault, its pack folded in, whose vault-config.yaml then lost its folder map. */
+function copyNoFolderMapVault(root) {
+  const { vaultPath } = moveVaultCopy(SAMPLE, root, { inVaultPack: true });
+  replaceYamlFolderMap(vaultPath, null);
   writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${vaultPath}'\noutput = '${path.join(root, 'site')}'\n`);
   return vaultPath;
 }
@@ -154,6 +162,8 @@ const CASES = [
   ['build --force-check with a vault-config.yaml that is not valid YAML', (r) => (copyBadYamlVault(r), ['build', '--force-check']), 3, /^.*_meta\/vault-config\.yaml is not valid YAML/m],
   ['build --force-check on a moved vault whose pack holds settings the yaml lacks', (r) => (copyUncarriedVault(r), ['build', '--force-check']), 3, /^campaign "t": .* still holds settings that _meta\/vault-config\.yaml does not, and the build no longer reads them there: .*excludeSections \("Uncarried Secret"\)\. Run "gm-scriptorium carry t" to move them into _meta\/vault-config\.yaml\. Nothing was written\.$/m],
   ['build --no-check on a moved vault whose pack holds settings the yaml lacks', (r) => (copyUncarriedVault(r), ['build', '--no-check']), 3, /^campaign "t": .* still holds settings that _meta\/vault-config\.yaml does not, and the build no longer reads them there: .*excludeSections \("Uncarried Secret"\)\. Run "gm-scriptorium carry t" to move them into _meta\/vault-config\.yaml\. Nothing was written\.$/m],
+  ['build --force-check on a moved vault whose vault-config.yaml sets no folder map', (r) => (copyNoFolderMapVault(r), ['build', '--force-check']), 3, /^campaign "t": _meta\/vault-config\.yaml sets no player_site\.folder_map, so the build would publish none of the vault's folders\. Set player_site\.folder_map in _meta\/vault-config\.yaml\. Nothing was written\.$/m],
+  ['build --no-check on a moved vault whose vault-config.yaml sets no folder map', (r) => (copyNoFolderMapVault(r), ['build', '--no-check']), 3, /^campaign "t": _meta\/vault-config\.yaml sets no player_site\.folder_map, so the build would publish none of the vault's folders\. Set player_site\.folder_map in _meta\/vault-config\.yaml\. Nothing was written\.$/m],
   ['build --no-check with a vault-config.yaml that is not valid YAML', (r) => (copyBadYamlVault(r), ['build', '--no-check']), 3, /^.*_meta\/vault-config\.yaml is not valid YAML/m],
   ['build --force-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--force-check']), 3, /where the site is built or what it keeps/],
   ['build --no-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--no-check']), 3, /where the site is built or what it keeps/],

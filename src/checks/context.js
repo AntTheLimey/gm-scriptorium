@@ -68,6 +68,7 @@ function buildCheckContext({
   packShadowed = null,
   packToml = null,
   packConfigPath = null,
+  configPath = null,
   deferOutputScan = false,
 }) {
   const index = buildResolutionIndex(vaultPath, jsonConfig);
@@ -98,6 +99,8 @@ function buildCheckContext({
     packToml,
     // The pack's vault.config.json (or the legacy site file), for a message that names it; null when not threaded through.
     packConfigPath,
+    // Scriptorium's own config file, so a message can name the per-machine backups folder beside it; null when not threaded through.
+    configPath,
     deferOutputScan: Boolean(deferOutputScan),
     index,
     // ADR 0037: _meta/relationship-types.md's word list, read once here rather than by each

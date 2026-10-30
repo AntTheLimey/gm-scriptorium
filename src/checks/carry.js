@@ -7,6 +7,7 @@ const { createFinding } = require('../report/finding');
 const { readSettingsFiles } = require('../vault/publishset');
 const pinned = require('../generator/pinned');
 const { platformFoldsCase } = require('../vault/exclusions');
+const { resolveMachineDir, BACKUPS_DIRNAME, campaignSegment } = require('../config/machinedir');
 
 /*
  * What `check` says about the pack's leftover settings on a vault whose settings moved to
@@ -66,6 +67,48 @@ function carryHint(campaign, vaultPath, packConfigPath) {
     return 'Move it into _meta/vault-config.yaml by hand: the carry only rewrites the pack in the vault.';
   }
   return `Run "gm-scriptorium carry ${campaign}" to move it into the vault's settings.`;
+}
+
+const FOLDER_MAP = 'player_site.folder_map';
+
+/**
+ * The per-machine folder that holds this campaign's backups, when it holds a copy of the yaml a carry
+ * or init made; else null. Reads only.
+ *
+ * @param {string|null} configPath Scriptorium's own config file
+ * @param {string} vaultPath
+ * @param {string} campaign
+ * @returns {string|null}
+ */
+function yamlBackupFolder(configPath, vaultPath, campaign) {
+  try {
+    const machine = resolveMachineDir({ configPath, vaultPath });
+    if (!machine.ok) return null;
+    const dir = path.join(machine.dir, BACKUPS_DIRNAME, campaignSegment(campaign));
+    return fs.readdirSync(dir).some((n) => /^vault-config-.*\.yaml\.bak$/.test(n)) ? dir : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * N1: on a moved vault, the vault's own folder map is not set or cannot be read, and the pack holds no
+ * folder map that the carry checks already name. The build would map no folder and publish almost
+ * nothing, so it is an error in check and the build refuses it. One sentence saying what to do,
+ * naming the backups folder when a carry or init kept a copy of the yaml; null when the map is fine.
+ *
+ * @param {{ origin: string, shown: * }} folderMap from unheldPackSettings
+ * @param {{ configPath?: string|null, vaultPath: string, campaign: string }} where
+ * @returns {string|null}
+ */
+function yamlFolderMapProblem(folderMap, { configPath, vaultPath, campaign }) {
+  if (!folderMap || folderMap.origin === 'file') return null;
+  const backup = yamlBackupFolder(configPath, vaultPath, campaign);
+  const restore = backup ? `, or restore it from a copy kept in ${backup}` : '';
+  if (folderMap.origin === 'fault') {
+    return `${FOLDER_MAP} in _meta/vault-config.yaml is ${show(folderMap.shown)}, which cannot be read, so the build would publish none of the vault's folders. Fix ${FOLDER_MAP} in _meta/vault-config.yaml${restore}.`;
+  }
+  return `_meta/vault-config.yaml sets no ${FOLDER_MAP}, so the build would publish none of the vault's folders. Set ${FOLDER_MAP} in _meta/vault-config.yaml${restore}.`;
 }
 
 /** The vault's settings file sets this setting: readably ('file'), or with a value the pin cannot read ('fault'). The carry never overwrites either. */
@@ -160,8 +203,10 @@ function carryFindings(ctx) {
  * @param {string} vaultPath
  * @param {object} packConfig the pack as read (vault.config.json content)
  * @param {{ md: string|null, yaml: string|null }} files the vault's settings files
- * @returns {{ faults: object[], unheld: { fault: object, vaultValue: *, origin: string, vaultShown?: * }[] }} `vaultShown`,
- *   only for origin 'fault': the value as the vault's settings file wrote it, which the pin cannot read
+ * @returns {{ faults: object[], unheld: { fault: object, vaultValue: *, origin: string, vaultShown?: * }[], origins: object,
+ *   folderMap: { origin: string, shown: * } }} `vaultShown`, only for origin 'fault': the value as the vault's settings file
+ *   wrote it, which the pin cannot read. `origins`: where the pin found each setting. `folderMap`: the vault's own
+ *   player_site.folder_map, its origin and (when it cannot be read) the value as written
  * @throws a settings file the pin cannot parse
  */
 function unheldPackSettings(vaultPath, packConfig, files) {
@@ -181,7 +226,12 @@ function unheldPackSettings(vaultPath, packConfig, files) {
     }
     unheld.push(entry);
   }
-  return { faults, unheld };
+  const shownOf = (setting) => {
+    const unreadable = faults.find((f) => f.kind === 'not-allowed' && f.setting === setting && f.source !== 'site');
+    return unreadable ? unreadable.value : undefined;
+  };
+  const folderMap = { origin: settings.origins[FOLDER_MAP], shown: settings.origins[FOLDER_MAP] === 'fault' ? shownOf(FOLDER_MAP) : undefined };
+  return { faults, unheld, origins: settings.origins, folderMap };
 }
 
 /**
@@ -240,8 +290,10 @@ function computeCarryFindings(ctx) {
   const files = readSettingsFiles(ctx.vaultPath);
   let faults;
   let unheld;
+  let origins;
+  let folderMap;
   try {
-    ({ faults, unheld } = unheldPackSettings(ctx.vaultPath, ctx.rawSiteConfig, files));
+    ({ faults, unheld, origins, folderMap } = unheldPackSettings(ctx.vaultPath, ctx.rawSiteConfig, files));
   } catch {
     // A settings file the pin cannot parse is reported where it is read (the build stops on the
     // pin's own error); there are no resolved values here to compare the pack with.
@@ -332,6 +384,21 @@ function computeCarryFindings(ctx) {
       }));
     }
   }
+  // N1: the vault's own folder map is unset or unreadable, and the pack holds none the checks above named.
+  if (!unheld.some((u) => u.fault.name === 'folderMap')) {
+    const problem = yamlFolderMapProblem(folderMap, ctx);
+    if (problem) {
+      findings.push(createFinding({
+        id: 'config/folder-map-not-carried',
+        severity: 'error',
+        category: 'config',
+        campaign: ctx.campaign,
+        path: null,
+        message: problem,
+        data: { packKey: null, setting: FOLDER_MAP },
+      }));
+    }
+  }
   return findings;
 }
 
@@ -344,6 +411,7 @@ module.exports = {
   packNotCarriedMessage,
   isVaultPack,
   vaultSets,
+  yamlFolderMapProblem,
   carryHint,
   runPackHidingNotCarried: only('config/pack-hiding-not-carried'),
   runPackSettingNotCarried: only('config/pack-setting-not-carried'),

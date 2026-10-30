@@ -132,4 +132,21 @@ function replaceChecked(text, from, to) {
   return text.replace(from, () => to);
 }
 
-module.exports = { moveVaultCopy, assertMovedLayout, onLayout, replaceChecked };
+/**
+ * Replaces the `player_site.folder_map` block of a moved vault's yaml (the key line and every line
+ * indented under it) with `line`, or removes it when `line` is null. Throws when there is no block,
+ * so a case cannot silently test the vault it started with.
+ *
+ * @param {string} vaultPath a moved vault
+ * @param {string|null} line the replacement, such as '  folder_map: "Sessions"'
+ * @returns {void}
+ */
+function replaceYamlFolderMap(vaultPath, line) {
+  const file = path.join(vaultPath, '_meta', 'vault-config.yaml');
+  const text = fs.readFileSync(file, 'utf8');
+  const block = /^ {2}folder_map:\n(?: {4}.*\n)+/m;
+  assert.ok(block.test(text), 'the yaml holds a player_site.folder_map block');
+  fs.writeFileSync(file, text.replace(block, () => (line === null ? '' : `${line}\n`)));
+}
+
+module.exports = { moveVaultCopy, assertMovedLayout, onLayout, replaceChecked, replaceYamlFolderMap };

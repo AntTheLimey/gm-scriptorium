@@ -10,7 +10,7 @@ const { runAtomicBuild } = require('../build/run');
 const { siteConfigOutputDirCollision } = require('../build/plan');
 const { planThemeAssets } = require('../build/themeassets');
 const { computePublishedSet, readSettingsFiles, isYamlParseError } = require('../vault/publishset');
-const { unheldPackSettings, buildBlockers, packNotCarriedMessage } = require('../checks/carry');
+const { unheldPackSettings, buildBlockers, packNotCarriedMessage, yamlFolderMapProblem } = require('../checks/carry');
 const { VaultUnreachableError, ConfigError } = require('../util/errors');
 const { suggestedSlug } = require('../setup/foldermap');
 const { EXIT_CODES } = require('../util/exitcodes');
@@ -128,25 +128,34 @@ function renderErrorLine(re) {
  * the build refuses here as well, whatever its flags: exit 3, one line, nothing written. On the old
  * layout the generator's own settings stop is not forceable either.
  *
+ * The same holds for the vault's own folder map when it is not set or cannot be read and the pack holds
+ * none (after a carry, say): the build would map no folder (reason 'folder-map-missing').
+ *
  * A vault-config.yaml the pin cannot parse is left to the generator's own stop, which says so.
  *
- * @throws {VaultUnreachableError} reason 'pack-not-carried'
+ * @throws {VaultUnreachableError} reason 'pack-not-carried' or 'folder-map-missing'
  */
-function refuseUncarriedPack({ vaultPath, rawSiteConfig, packConfigPath, campaign }) {
+function refuseUncarriedPack({ vaultPath, rawSiteConfig, packConfigPath, campaign, configPath }) {
   let unheld;
+  let folderMap;
   try {
-    ({ unheld } = unheldPackSettings(vaultPath, rawSiteConfig, readSettingsFiles(vaultPath)));
+    ({ unheld, folderMap } = unheldPackSettings(vaultPath, rawSiteConfig, readSettingsFiles(vaultPath)));
   } catch (err) {
     if (isYamlParseError(err)) return;
     throw err;
   }
   const blockers = buildBlockers(unheld);
-  if (blockers.length === 0) return;
-  throw new VaultUnreachableError(packNotCarriedMessage({ campaign, vaultPath, packConfigPath, blockers }), {
-    path: vaultPath,
-    campaign,
-    reason: 'pack-not-carried',
-  });
+  if (blockers.length > 0) {
+    throw new VaultUnreachableError(packNotCarriedMessage({ campaign, vaultPath, packConfigPath, blockers }), {
+      path: vaultPath,
+      campaign,
+      reason: 'pack-not-carried',
+    });
+  }
+  const problem = unheld.some((u) => u.fault.name === 'folderMap') ? null : yamlFolderMapProblem(folderMap, { configPath, vaultPath, campaign });
+  if (problem) {
+    throw new VaultUnreachableError(`campaign "${campaign}": ${problem} Nothing was written.`, { path: vaultPath, campaign, reason: 'folder-map-missing' });
+  }
 }
 
 function baseEnvelope(campaign, vaultPath, outputPath, vaultMismatch, generatedAt) {
@@ -327,7 +336,7 @@ function runBuildForContext(ctxInfo, flags) {
   }
 
   // ADR 0071, section 12: independent of --no-check and --force-check (plain build stops at the check first).
-  if (settingsLayout === 'new') refuseUncarriedPack({ vaultPath, rawSiteConfig, packConfigPath, campaign: ctxInfo.campaign });
+  if (settingsLayout === 'new') refuseUncarriedPack({ vaultPath, rawSiteConfig, packConfigPath, campaign: ctxInfo.campaign, configPath: ctxInfo.configPath || null });
 
   const result = runAtomicBuild({
     vaultPath,

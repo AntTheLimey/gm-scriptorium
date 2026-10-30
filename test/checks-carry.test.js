@@ -24,7 +24,7 @@ const carry = require('../src/checks/carry');
 const { isHeldByVault } = carry;
 const { runExcludeSectionsDivergence, runExcludeDirsDivergence, runExcludeFieldsDivergence, runSettingsFault } = require('../src/checks/configdiv');
 const pinned = require('../src/generator/pinned');
-const { moveVaultCopy } = require('./helpers/moved-vault');
+const { moveVaultCopy, replaceYamlFolderMap } = require('./helpers/moved-vault');
 
 const SAMPLE = path.join(__dirname, '..', 'examples', 'the-long-lease');
 const CARRY_IDS = ['config/pack-hiding-not-carried', 'config/pack-setting-not-carried', 'config/pack-setting-differs', 'config/folder-map-not-carried'];
@@ -52,10 +52,16 @@ function contextOf(vault, root, pack) {
   });
 }
 
-function findingsFor(pack, { before } = {}) {
+// A GM's moved vault has a folder map in its yaml, and a yaml without one is its own error (N1). So a
+// case whose pack holds no folder map gives the yaml one (the pin's own writer, test-only); a case
+// about the pack's folder map leaves the yaml without, unless its own `before` sets one.
+const YAML_FOLDER_MAP = { Sessions: 'sessions', 'Characters/NPCs': 'characters/npcs' };
+
+function findingsFor(pack, { before, yamlMap = !('folderMap' in pack) } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-carry-'));
   try {
     const { vaultPath } = moveVaultCopy(SAMPLE, root);
+    if (yamlMap) require('gm-apprentice-publish/lib/settings/write').applyChanges(vaultPath, [{ op: 'set', name: 'player_site.folder_map', value: YAML_FOLDER_MAP }]);
     if (before) before(vaultPath);
     const ctx = contextOf(vaultPath, root, pack);
     return { ctx, findings: runChecks(ctx) };
@@ -413,4 +419,77 @@ test('a yaml title the pin cannot read, with a pack title: a warning that names 
     'siteTitle in the pack is "Pack Title", but the vault\'s settings set player_site.title to ["a","b"], which cannot be read. ' +
       'The carry leaves it as it is: fix player_site.title in _meta/vault-config.yaml.',
   );
+});
+
+/** A carried moved copy of the sample (the pack folded in, then left as `pack`), its context, and its findings. */
+function carriedFindings(pack, { yamlMap, configPath } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-carry-'));
+  try {
+    const { vaultPath } = moveVaultCopy(SAMPLE, root, { inVaultPack: true });
+    if (yamlMap !== undefined) replaceYamlFolderMap(vaultPath, yamlMap);
+    const packFile = path.join(vaultPath, '_meta', 'scriptorium', 'vault.config.json');
+    fs.writeFileSync(packFile, JSON.stringify(pack, null, 2));
+    const site = { siteSource: 'pack', siteConfigPath: packFile, siteDir: path.dirname(packFile), packShadowed: null };
+    const info = contextFromSite({ campaign: 'x', vault: vaultPath }, vaultPath, site);
+    const ctx = buildCheckContext({
+      campaign: 'x',
+      vaultPath: info.vaultPath,
+      jsonConfig: info.jsonConfig,
+      rawSiteConfig: info.rawSiteConfig,
+      settingsLayout: info.settingsLayout,
+      packConfigPath: packFile,
+      configPath: configPath ? configPath(root) : null,
+    });
+    return { root, findings: runChecks(ctx) };
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test('N1: a carried vault whose yaml folder map cannot be read is a folder-map error, with an empty pack', () => {
+  const { findings } = carriedFindings({}, { yamlMap: '  folder_map: "Sessions"' });
+  const found = findings.filter((f) => f.id === 'config/folder-map-not-carried');
+  assert.equal(found.length, 1);
+  assert.equal(found[0].severity, 'error');
+  assert.equal(
+    found[0].message,
+    'player_site.folder_map in _meta/vault-config.yaml is "Sessions", which cannot be read, so the build would publish none of the vault\'s folders. Fix player_site.folder_map in _meta/vault-config.yaml.',
+  );
+});
+
+test('N1: a carried vault whose yaml has no folder map is a folder-map error, with an empty pack', () => {
+  const { findings } = carriedFindings({}, { yamlMap: null });
+  const found = findings.filter((f) => f.id === 'config/folder-map-not-carried');
+  assert.equal(found.length, 1);
+  assert.equal(found[0].severity, 'error');
+  assert.equal(
+    found[0].message,
+    '_meta/vault-config.yaml sets no player_site.folder_map, so the build would publish none of the vault\'s folders. Set player_site.folder_map in _meta/vault-config.yaml.',
+  );
+});
+
+test('N1: when a carry backup of the yaml exists, the folder-map error names the folder it is in', () => {
+  let dir;
+  const { findings } = carriedFindings({}, {
+    yamlMap: null,
+    configPath: (root) => {
+      const cfg = path.join(root, 'cfg', 'config.toml');
+      dir = path.join(root, 'cfg', 'backups', 'campaign-x');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(cfg, 'config_version = 1\n');
+      fs.writeFileSync(path.join(dir, 'vault-config-20261030T100000000Z-abcdef.yaml.bak'), 'version: 1\n');
+      return cfg;
+    },
+  });
+  const found = findings.filter((f) => f.id === 'config/folder-map-not-carried');
+  assert.equal(found.length, 1);
+  assert.equal(
+    found[0].message,
+    `_meta/vault-config.yaml sets no player_site.folder_map, so the build would publish none of the vault's folders. Set player_site.folder_map in _meta/vault-config.yaml, or restore it from a copy kept in ${dir}.`,
+  );
+});
+
+test('N1: a carried vault with a readable yaml folder map has no folder-map error (control)', () => {
+  const { findings } = carriedFindings({});
+  assert.deepEqual(findings.filter((f) => f.id === 'config/folder-map-not-carried'), []);
 });

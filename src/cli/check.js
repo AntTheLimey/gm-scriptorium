@@ -465,6 +465,7 @@ function runCheckForContextWithContext(ctxInfo, flags, opts = {}) {
     packShadowed,
     packToml,
     packConfigPath,
+    configPath: ctxInfo.configPath || null,
     deferOutputScan: Boolean(opts.deferOutputScan),
   });
 

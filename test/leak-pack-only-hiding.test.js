@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { withScratch, run } = require('./helpers/b4-cli');
-const { moveVaultCopy, assertMovedLayout } = require('./helpers/moved-vault');
+const { moveVaultCopy, assertMovedLayout, replaceYamlFolderMap } = require('./helpers/moved-vault');
 // Test-only: the pin's own settings writer, to give the yaml the folder map (as a GM's yaml would have it).
 const { applyChanges } = require('gm-apprentice-publish/lib/settings/write');
 
@@ -226,6 +226,73 @@ test('moved, with a yaml folder map the generator cannot read: build --no-check 
       'folderMap (player_site.folder_map in _meta/vault-config.yaml is "not a map", which cannot be read). ' +
       'Fix player_site.folder_map in _meta/vault-config.yaml; the carry leaves it as it is. Nothing was written.';
     assert.ok(res.all.split('\n').includes(line), res.all);
+    assert.ok(!fs.existsSync(f.site));
+  });
+});
+
+/*
+ * N1: the vault's own folder map, after a carry. The pack is then empty, so no carry check names a
+ * folder map, but a yaml map that cannot be read, or one deleted afterwards, still maps no folder: the
+ * build would publish almost nothing over the players' site. Check calls it an error and the build
+ * refuses it whatever its flags. The carry's own copy of the yaml is named.
+ */
+function carried(root) {
+  const f = fixture(root, 'new', {});
+  const res = run(root, ['carry', '--yes']);
+  assert.equal(res.code, 0, res.all);
+  assert.deepEqual(JSON.parse(fs.readFileSync(f.pack, 'utf8')), {}, 'the carry emptied the pack');
+  return { ...f, backups: path.join(root, 'backups', 'campaign-t') };
+}
+
+const UNREADABLE = (backups) =>
+  'campaign "t": player_site.folder_map in _meta/vault-config.yaml is "Sessions", which cannot be read, so the build would publish none of the vault\'s folders. ' +
+  `Fix player_site.folder_map in _meta/vault-config.yaml, or restore it from a copy kept in ${backups}. Nothing was written.`;
+const MISSING = (backups) =>
+  'campaign "t": _meta/vault-config.yaml sets no player_site.folder_map, so the build would publish none of the vault\'s folders. ' +
+  `Set player_site.folder_map in _meta/vault-config.yaml${backups ? `, or restore it from a copy kept in ${backups}` : ''}. Nothing was written.`;
+
+for (const flag of ['--no-check', '--force-check']) {
+  test(`N1, carried, build ${flag}: a yaml folder map that cannot be read refuses with exit 3 and names the backup folder`, () => {
+    withScratch((root) => {
+      const f = carried(root);
+      replaceYamlFolderMap(f.vault, '  folder_map: "Sessions"');
+      const res = run(root, ['build', flag]);
+      assert.equal(res.code, 3, res.all);
+      assert.ok(res.all.split('\n').includes(UNREADABLE(f.backups)), res.all);
+      assert.ok(!fs.existsSync(f.site));
+    });
+  });
+
+  test(`N1, carried, build ${flag}: a yaml folder map deleted after the carry refuses with exit 3`, () => {
+    withScratch((root) => {
+      const f = carried(root);
+      replaceYamlFolderMap(f.vault, null);
+      const res = run(root, ['build', flag]);
+      assert.equal(res.code, 3, res.all);
+      assert.ok(res.all.split('\n').includes(MISSING(f.backups)), res.all);
+      assert.ok(!fs.existsSync(f.site));
+    });
+  });
+}
+
+test('N1, carried: plain build stops at the check with exit 2, and check names the folder-map error', () => {
+  withScratch((root) => {
+    const f = carried(root);
+    replaceYamlFolderMap(f.vault, '  folder_map: "Sessions"');
+    const checked = run(root, ['check']);
+    assert.equal(checked.code, 2, checked.all);
+    assert.match(checked.all, /^ERROR config\/folder-map-not-carried {2}player_site\.folder_map in _meta\/vault-config\.yaml is "Sessions", which cannot be read/m);
+    assert.equal(run(root, ['build']).code, 2);
+    assert.ok(!fs.existsSync(f.site));
+  });
+});
+
+test('N1, moved with no folder map anywhere and no backup: build --no-check refuses with exit 3 and says it plainly', () => {
+  withScratch((root) => {
+    const f = fixture(root, 'new', { folderMap: undefined }, { yamlMap: false });
+    const res = run(root, ['build', '--no-check']);
+    assert.equal(res.code, 3, res.all);
+    assert.ok(res.all.split('\n').includes(MISSING(null)), res.all);
     assert.ok(!fs.existsSync(f.site));
   });
 });
