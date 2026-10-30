@@ -493,3 +493,18 @@ test('N1: a carried vault with a readable yaml folder map has no folder-map erro
   const { findings } = carriedFindings({});
   assert.deepEqual(findings.filter((f) => f.id === 'config/folder-map-not-carried'), []);
 });
+
+test('item 4: a pack siteUrl the yaml does not set is one not-carried warning that says the pack is still read for now', () => {
+  const { findings } = carriedFindings({ siteUrl: 'https://example.org/longlease/' });
+  const found = carryOf(findings);
+  assert.deepEqual(found.map((f) => [f.id, f.severity, f.data.packKey]), [['config/pack-setting-not-carried', 'warn', 'siteUrl']]);
+  assert.equal(
+    found[0].message,
+    'siteUrl in the pack is "https://example.org/longlease/". The generator still reads it from the pack for now, but it belongs in player_site.url in _meta/vault-config.yaml. Run "gm-scriptorium carry x" to move it there.',
+  );
+});
+
+test('item 4: a pack site-folder key equal to its built-in value, or outputDir, gives no warning', () => {
+  const { findings } = carriedFindings({ preserveDirs: [], outputDir: 'site-out' });
+  assert.deepEqual(carryOf(findings), []);
+});

@@ -399,6 +399,26 @@ function computeCarryFindings(ctx) {
       }));
     }
   }
+  // The site-folder keys (siteUrl and its siblings): the pin raises no old-name fault for them, because it
+  // still reads them from the site file while the vault's settings do not set them. The build keeps them
+  // (src/build/stage.js), so nothing is lost today, but they belong in the yaml. outputDir is Scriptorium's own
+  // business (the build hands the output folder over directly); a value equal to the built-in one says nothing.
+  for (const { key, name, default: builtIn } of pinned.siteFolderKeys()) {
+    if (key === 'outputDir') continue;
+    const value = ctx.rawSiteConfig[key];
+    if (value === undefined || value === null || isDeepStrictEqual(value, builtIn) || vaultSets(origins[name])) continue;
+    findings.push(createFinding({
+      id: 'config/pack-setting-not-carried',
+      severity: 'warn',
+      category: 'config',
+      campaign: ctx.campaign,
+      path: null,
+      message: `${key} in ${file} is ${show(value)}. The generator still reads it from ${file} for now, but it belongs in ${name} in _meta/vault-config.yaml. ${
+        reached ? `Run "gm-scriptorium carry ${ctx.campaign}" to move it there.` : hint
+      }`,
+      data: { packKey: key, setting: name },
+    }));
+  }
   return findings;
 }
 

@@ -1102,7 +1102,7 @@ module.exports = deepFreeze({
     },
     'config/pack-setting-not-carried': {
       since: '0.6.0',
-      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still sets something the vault\'s settings do not, such as `siteTitle`. The generator ignores the pack\'s value, so the site uses the built-in one. A key the generator no longer reads at all, such as `landingTagline`, is not reported.',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still sets something the vault\'s settings do not, such as `siteTitle`. The generator ignores the pack\'s value, so the site uses the built-in one. A key the generator no longer reads at all, such as `landingTagline`, is not reported. The site folder\'s own keys are the exception: `siteUrl`, `host`, `cloudflarePagesProject` and `preserveDirs` are still read from the pack for now, while the vault\'s settings do not set them, so the site is right today. The message says so. A value equal to the built-in one is not reported.',
       action: 'Run `gm-scriptorium carry <campaign>` to move the value into the vault\'s settings, or set it in `_meta/vault-config.yaml` yourself.',
     },
     'config/folder-map-not-carried': {
