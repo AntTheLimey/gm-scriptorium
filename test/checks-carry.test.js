@@ -539,11 +539,15 @@ test('item 4: a pack site-folder key equal to its built-in value, or outputDir, 
 });
 
 /** A carried vault whose yaml sets player_site.url (the pin's own writer, test-only), with this pack. */
-function withYamlUrl(pack, url) {
+function withYamlUrl(pack, url, edit) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-carry-'));
   try {
     const { vaultPath } = moveVaultCopy(SAMPLE, root, { inVaultPack: true });
     require('gm-apprentice-publish/lib/settings/write').applyChanges(vaultPath, [{ op: 'set', name: 'player_site.url', value: url }]);
+    if (edit) {
+      const yamlFile = path.join(vaultPath, '_meta', 'vault-config.yaml');
+      fs.writeFileSync(yamlFile, edit(fs.readFileSync(yamlFile, 'utf8')));
+    }
     const packFile = path.join(vaultPath, '_meta', 'scriptorium', 'vault.config.json');
     fs.writeFileSync(packFile, JSON.stringify(pack, null, 2));
     const site = { siteSource: 'pack', siteConfigPath: packFile, siteDir: path.dirname(packFile), packShadowed: null };
@@ -569,4 +573,13 @@ test('R2: a pack siteUrl unlike the yaml\'s player_site.url is one differs warni
 
 test('R2: a pack siteUrl equal to the yaml\'s player_site.url gives no warning', () => {
   assert.deepEqual(carryOf(withYamlUrl({ siteUrl: 'https://example.org/same/' }, 'https://example.org/same/')), []);
+});
+
+test('a pack host unlike a yaml player_site.host the generator cannot read names the yaml value and says to fix it there, not to carry', () => {
+  const found = carryOf(withYamlUrl({ host: 'cloudflare-pages' }, 'https://example.org/yaml/', (text) => text.replace(/^  host: github-pages$/m, '  host: netlify')));
+  assert.deepEqual(found.map((f) => [f.id, f.severity, f.data.packKey]), [['config/pack-setting-differs', 'warn', 'host']]);
+  assert.equal(
+    found[0].message,
+    'host in the pack is "cloudflare-pages", but the vault\'s settings set player_site.host to "netlify", which cannot be read. The carry leaves it as it is: fix player_site.host in _meta/vault-config.yaml.',
+  );
 });

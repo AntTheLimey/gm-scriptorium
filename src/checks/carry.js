@@ -241,9 +241,10 @@ function carryFindings(ctx) {
  * @param {object} packConfig the pack as read (vault.config.json content)
  * @param {{ md: string|null, yaml: string|null }} files the vault's settings files
  * @returns {{ faults: object[], unheld: { fault: object, vaultValue: *, origin: string, vaultShown?: * }[], origins: object,
- *   folderMap: { origin: string, shown: * } }} `vaultShown`, only for origin 'fault': the value as the vault's settings file
+ *   folderMap: { origin: string, shown: * }, shownOf: function }} `vaultShown`, only for origin 'fault': the value as the vault's settings file
  *   wrote it, which the pin cannot read. `origins`: where the pin found each setting. `folderMap`: the vault's own
- *   player_site.folder_map, its origin and (when it cannot be read) the value as written
+ *   player_site.folder_map, its origin and (when it cannot be read) the value as written. `shownOf(setting)`: that
+ *   raw value for any setting the pin cannot read
  * @throws a settings file the pin cannot parse
  */
 function unheldPackSettings(vaultPath, packConfig, files) {
@@ -268,7 +269,7 @@ function unheldPackSettings(vaultPath, packConfig, files) {
     return unreadable ? unreadable.value : undefined;
   };
   const folderMap = { origin: settings.origins[FOLDER_MAP], shown: settings.origins[FOLDER_MAP] === 'fault' ? shownOf(FOLDER_MAP) : undefined };
-  return { faults, unheld, origins: settings.origins, values: settings.values, folderMap };
+  return { faults, unheld, origins: settings.origins, values: settings.values, folderMap, shownOf };
 }
 
 /**
@@ -330,8 +331,9 @@ function computeCarryFindings(ctx) {
   let origins;
   let values;
   let folderMap;
+  let shownOf;
   try {
-    ({ faults, unheld, origins, values, folderMap } = unheldPackSettings(ctx.vaultPath, ctx.rawSiteConfig, files));
+    ({ faults, unheld, origins, values, folderMap, shownOf } = unheldPackSettings(ctx.vaultPath, ctx.rawSiteConfig, files));
   } catch {
     // A settings file the pin cannot parse is reported where it is read (the build stops on the
     // pin's own error); there are no resolved values here to compare the pack with.
@@ -447,6 +449,19 @@ function computeCarryFindings(ctx) {
     // Both files set it, differently, as the pin's own comparison judges (its 'dropped' fault with
     // siteDiffers): the vault's value is used, as for every other setting both files set.
     const differs = faults.find((f) => f.kind === 'dropped' && f.source === 'site' && f.siteDiffers && f.name === key);
+    if (differs && origins[name] === 'fault') {
+      // The pin compares the vault's raw value, which it cannot read: the carry keeps it, so only a fix in the yaml helps.
+      findings.push(createFinding({
+        id: 'config/pack-setting-differs',
+        severity: 'warn',
+        category: 'config',
+        campaign: ctx.campaign,
+        path: null,
+        message: `${key} in ${file} is ${show(differs.value)}, but the vault's settings set ${name} to ${show(shownOf(name))}, which cannot be read. The carry leaves it as it is: fix ${name} in _meta/vault-config.yaml.`,
+        data: { packKey: key, setting: name },
+      }));
+      continue;
+    }
     if (differs) {
       findings.push(createFinding({
         id: 'config/pack-setting-differs',
