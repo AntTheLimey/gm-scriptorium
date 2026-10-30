@@ -13,6 +13,8 @@ const pinned = require('../generator/pinned');
  *
  *   - a hide-list entry the pack holds and the vault's list lacks would be lost, so it is an ERROR
  *     (config/pack-hiding-not-carried): the page or section it hid would publish;
+ *   - a folder map the pack holds and the vault does not set is an ERROR (config/folder-map-not-carried):
+ *     the build would map no folder and publish a near-empty site over the players' one;
  *   - any other setting the pack holds and the vault does not set is a WARN
  *     (config/pack-setting-not-carried);
  *   - a setting the pack and the vault both set, to different values, is a WARN
@@ -187,6 +189,16 @@ function computeCarryFindings(ctx) {
         message: `${fault.name} in the pack is ${show(fault.value)}, but the vault's settings set ${fault.setting} to ${show(vaultValue)}; the vault's value is used. ${carryHint(ctx.campaign)}`,
         data,
       }));
+    } else if (fault.name === 'folderMap') {
+      // The build reads no folder map from the pack, and with none in the vault's settings it maps no
+      // folder at all: it would publish a near-empty site over the players' one, with exit 0.
+      findings.push(createFinding({
+        ...base,
+        id: 'config/folder-map-not-carried',
+        severity: 'error',
+        message: `The folder map is still only in the pack (${ctx.packConfigPath || 'its vault.config.json'}), so the build would publish none of the mapped folders. Run "gm-scriptorium carry ${ctx.campaign}" to move it into _meta/vault-config.yaml.`,
+        data,
+      }));
     } else {
       findings.push(createFinding({
         ...base,
@@ -208,6 +220,7 @@ module.exports = {
   carryHint,
   runPackHidingNotCarried: only('config/pack-hiding-not-carried'),
   runPackSettingNotCarried: only('config/pack-setting-not-carried'),
+  runFolderMapNotCarried: only('config/folder-map-not-carried'),
   runPackSettingDiffers: only('config/pack-setting-differs'),
   runLeftoverSettingsFile: only('config/leftover-settings-file'),
 };

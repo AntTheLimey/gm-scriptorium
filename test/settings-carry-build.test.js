@@ -196,11 +196,15 @@ test('a key the vault lacks: the pack folder map puts NPCs at "people"; the buil
     // so Alice's page is not published anywhere; the pack's map would have put her under npcs/ or people/.
     const f = fixture(root, { vaultMap: false, pack: { folderMap: { Locations: 'locations', Recaps: 'sessions', NPCs: 'people' } } });
     const checked = run(root, ['check']);
-    // A map only the pack holds is a warning, not an error: the build still runs, and says what it dropped.
-    assert.equal(checked.code, 0, checked.all);
-    assert.ok(checked.out.includes('WARN config/pack-setting-not-carried  folderMap in the pack is'), checked.out);
+    // A map only the pack holds would publish a near-empty site over the players' one, so it is an error.
+    assert.equal(checked.code, 2, checked.all);
+    assert.ok(checked.out.includes('ERROR config/folder-map-not-carried'), checked.out);
+    assert.ok(!checked.out.includes('config/pack-setting-not-carried  folderMap'), checked.out);
     const plain = run(root, ['build']);
-    assert.equal(plain.code, 0, plain.all);
+    assert.equal(plain.code, 2, plain.all);
+    assert.ok(!fs.existsSync(f.site), 'a refused build must write nothing');
+    const forced = run(root, ['build', '--force-check']);
+    assert.equal(forced.code, 0, forced.all);
     assert.deepEqual(filesHolding(f.site, 'Runs the general store.'), []);
     assert.deepEqual(filesUnder(f.site).filter((p) => /alice/i.test(p)), []);
 
@@ -208,6 +212,8 @@ test('a key the vault lacks: the pack folder map puts NPCs at "people"; the buil
     assert.equal(carried.code, 0, carried.all);
     assert.ok(!('folderMap' in readPack(f.vault)));
     fs.rmSync(f.site, { recursive: true, force: true });
+    const after = run(root, ['check']);
+    assert.ok(!after.out.includes('config/folder-map-not-carried  '), after.out);
     const built = run(root, ['build']);
     assert.equal(built.code, 0, built.all);
     assert.deepEqual(filesUnder(f.site).filter((p) => /alice/i.test(p)), ['people/alice.html']);

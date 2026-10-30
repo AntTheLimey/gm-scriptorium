@@ -422,6 +422,7 @@ function contextFromSite(ctxInfo, vaultPath, site) {
     settingsLayout: moved ? 'new' : 'legacy',
     vaultMismatch,
     siteDir: site.siteDir,
+    packConfigPath: site.siteConfigPath,
     siteSource: site.siteSource,
     packShadowed: site.packShadowed,
     packToml,
@@ -449,7 +450,7 @@ function contextFromSite(ctxInfo, vaultPath, site) {
  * @returns {{ envelope: object, exitCode: number, human: string, checkCtx: object }}
  */
 function runCheckForContextWithContext(ctxInfo, flags, opts = {}) {
-  const { vaultPath, jsonConfig, rawSiteConfig, settingsLayout, vaultMismatch, packShadowed, packToml } = resolveVaultContext(ctxInfo);
+  const { vaultPath, jsonConfig, rawSiteConfig, settingsLayout, vaultMismatch, packShadowed, packToml, packConfigPath } = resolveVaultContext(ctxInfo);
 
   const graph = Boolean(flags.graph);
   const checkCtx = buildCheckContext({
@@ -463,6 +464,7 @@ function runCheckForContextWithContext(ctxInfo, flags, opts = {}) {
     vaultMismatch,
     packShadowed,
     packToml,
+    packConfigPath,
     deferOutputScan: Boolean(opts.deferOutputScan),
   });
 

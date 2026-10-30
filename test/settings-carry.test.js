@@ -21,7 +21,7 @@ const { VaultUnreachableError, ScriptoriumError } = require('../src/util/errors'
  * with 'Pack Only Secret' added to the pack's hide list, which the yaml does not hold.
  */
 
-const CARRY_IDS = ['config/pack-hiding-not-carried', 'config/pack-setting-not-carried', 'config/pack-setting-differs'];
+const CARRY_IDS = ['config/pack-hiding-not-carried', 'config/pack-setting-not-carried', 'config/pack-setting-differs', 'config/folder-map-not-carried'];
 // What the planner's scratch folder is called; it must never reach the GM's screen.
 const SCRATCH_PREFIX = 'scriptorium-carry-';
 

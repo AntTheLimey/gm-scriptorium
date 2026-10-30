@@ -263,7 +263,16 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'On a vault whose settings moved to _meta/vault-config.yaml, the pack\'s vault.config.json sets something (such as siteTitle or folderMap) that the vault\'s settings do not set, so the pack\'s value is not used. Run "gm-scriptorium carry" to move it into the vault\'s settings. A key the generator no longer reads at all (landingTagline) is not reported.',
+      'On a vault whose settings moved to _meta/vault-config.yaml, the pack\'s vault.config.json sets something (such as siteTitle) that the vault\'s settings do not set, so the pack\'s value is not used. Run "gm-scriptorium carry" to move it into the vault\'s settings. A key the generator no longer reads at all (landingTagline) is not reported.',
+  },
+  {
+    id: 'config/folder-map-not-carried',
+    category: 'config',
+    defaultSeverity: 'error',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'On a vault whose settings moved to _meta/vault-config.yaml, the pack\'s vault.config.json has a folderMap and the vault\'s settings set no player_site.folder_map. The build reads no folder map from the pack, so it would map no folder and publish a near-empty site. Run "gm-scriptorium carry" to move the map into the vault\'s settings.',
   },
   {
     id: 'config/pack-setting-differs',

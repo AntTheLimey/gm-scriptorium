@@ -44,6 +44,7 @@ function outputHasBuild(outputPath) {
  * @param {object|null} [opts.packToml] ADR 0023: the parsed pack.toml (src/build/packtoml.js's
  *   loadPackToml return value, from src/cli/check.js's resolveVaultContext), or null when no
  *   check-driving command threaded one through. Only src/checks/themescheme.js reads it.
+ * @param {string|null} [opts.packConfigPath] the site config file the pack was read from, for messages
  * @param {boolean} [opts.deferOutputScan] Track D2, FR-16: true only for the
  *   pre-build `check` `scriptorium build` runs internally (src/cli/build.js
  *   is the only caller that ever passes true — no CLI flag, config key, or
@@ -66,6 +67,7 @@ function buildCheckContext({
   vaultMismatch = null,
   packShadowed = null,
   packToml = null,
+  packConfigPath = null,
   deferOutputScan = false,
 }) {
   const index = buildResolutionIndex(vaultPath, jsonConfig);
@@ -94,6 +96,8 @@ function buildCheckContext({
     vaultMismatch,
     packShadowed,
     packToml,
+    // The pack's vault.config.json (or the legacy site file), for a message that names it; null when not threaded through.
+    packConfigPath,
     deferOutputScan: Boolean(deferOutputScan),
     index,
     // ADR 0037: _meta/relationship-types.md's word list, read once here rather than by each

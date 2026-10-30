@@ -27,7 +27,7 @@ const pinned = require('../src/generator/pinned');
 const { moveVaultCopy } = require('./helpers/moved-vault');
 
 const SAMPLE = path.join(__dirname, '..', 'examples', 'the-long-lease');
-const CARRY_IDS = ['config/pack-hiding-not-carried', 'config/pack-setting-not-carried', 'config/pack-setting-differs'];
+const CARRY_IDS = ['config/pack-hiding-not-carried', 'config/pack-setting-not-carried', 'config/pack-setting-differs', 'config/folder-map-not-carried'];
 // The context is built with the campaign name 'x'.
 const CARRY_HINT = 'Run "gm-scriptorium carry x" to move it into the vault\'s settings.';
 
@@ -120,14 +120,45 @@ test('a pack title unlike the yaml title is one warning that says the vault valu
   assert.ok(found[0].message.endsWith(CARRY_HINT), found[0].message);
 });
 
-test('a pack folder map when the yaml has none is one not-carried warning', () => {
+test('a pack folder map when the yaml has none is one folder-map error, and not also a not-carried warning', () => {
   const { findings } = findingsFor({ searchEnabled: true, folderMap: { Places: 'places' } });
   const found = carryOf(findings);
   assert.equal(found.length, 1);
-  assert.equal(found[0].id, 'config/pack-setting-not-carried');
-  assert.equal(found[0].severity, 'warn');
+  assert.equal(found[0].id, 'config/folder-map-not-carried');
+  assert.equal(found[0].severity, 'error');
+  assert.equal(found[0].category, 'config');
   assert.deepEqual(found[0].data, { packKey: 'folderMap', setting: 'player_site.folder_map' });
-  assert.ok(found[0].message.endsWith(CARRY_HINT), found[0].message);
+  assert.equal(
+    found[0].message,
+    'The folder map is still only in the pack (its vault.config.json), so the build would publish none of the mapped folders. Run "gm-scriptorium carry x" to move it into _meta/vault-config.yaml.',
+  );
+});
+
+test('the folder-map error names the pack file when the context knows it', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-carry-'));
+  try {
+    const { vaultPath } = moveVaultCopy(SAMPLE, root);
+    const ctx = { ...contextOf(vaultPath, root, { searchEnabled: true, folderMap: { Places: 'places' } }), packConfigPath: '/some/pack/vault.config.json' };
+    const found = runChecks(ctx).filter((f) => f.id === 'config/folder-map-not-carried');
+    assert.equal(found.length, 1);
+    assert.equal(
+      found[0].message,
+      'The folder map is still only in the pack (/some/pack/vault.config.json), so the build would publish none of the mapped folders. Run "gm-scriptorium carry x" to move it into _meta/vault-config.yaml.',
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a pack folder map when the yaml holds a folder map, even a different one, is not a folder-map error', () => {
+  const { findings } = findingsFor({ searchEnabled: true, folderMap: { Places: 'places' } }, {
+    before: (vault) => {
+      // Test-only: the pin's own writer sets what the vault already holds.
+      require('gm-apprentice-publish/lib/settings/write').applyChanges(vault, [{ op: 'set', name: 'player_site.folder_map', value: { Sites: 'sites' } }]);
+    },
+  });
+  assert.deepEqual(findings.filter((f) => f.id === 'config/folder-map-not-carried'), []);
+  assert.deepEqual(carryOf(findings).map((f) => f.id), ['config/pack-setting-differs']);
 });
 
 test('landingTagline in the pack is never reported, because the pin no longer reads it', () => {

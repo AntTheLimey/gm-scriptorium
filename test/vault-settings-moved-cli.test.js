@@ -20,9 +20,17 @@ function register(root, vault, siteConfig, out = 'site') {
   fs.writeFileSync(path.join(root, 'config.toml'), `config_version = 1\n[campaigns.t]\nvault = '${vault}'\n${site}output = '${path.join(root, out)}'\n`);
 }
 
-/** A moved copy of the sample (its pack kept), registered as campaign "t". */
-function moved(root) {
+/**
+ * A moved copy of the sample (its pack kept), registered as campaign "t". The yaml gets the folder map the
+ * sample's pack has (the pin's own writer, test-only), because a pack map the yaml lacks is its own error
+ * (config/folder-map-not-carried); `withMap: false` leaves it out.
+ */
+function moved(root, { withMap = true } = {}) {
   const { vaultPath } = moveVaultCopy(SAMPLE, root);
+  if (withMap) {
+    const pack = JSON.parse(fs.readFileSync(path.join(SAMPLE, '_meta', 'scriptorium', 'vault.config.json'), 'utf8'));
+    require('gm-apprentice-publish/lib/settings/write').applyChanges(vaultPath, [{ op: 'set', name: 'player_site.folder_map', value: pack.folderMap }]);
+  }
   register(root, vaultPath);
   return vaultPath;
 }
@@ -56,6 +64,19 @@ test('check on a moved vault exits 0', () => {
     moved(root);
     const res = run(root, ['check']);
     assert.equal(res.code, 0, res.all);
+  });
+});
+
+test('a pack folder map the yaml lacks gives check exit 2 and build exit 2 with nothing written, and --force-check builds', () => {
+  withScratch((root) => {
+    moved(root, { withMap: false });
+    const checked = run(root, ['check']);
+    assert.equal(checked.code, 2, checked.all);
+    assert.match(checked.all, /^ERROR config\/folder-map-not-carried /m);
+    const built = run(root, ['build']);
+    assert.equal(built.code, 2, built.all);
+    assert.ok(!fs.existsSync(path.join(root, 'out')) && !fs.existsSync(path.join(root, 'site')), 'a refused build writes no output folder');
+    assert.equal(run(root, ['build', '--force-check']).code, 0);
   });
 });
 

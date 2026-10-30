@@ -57,6 +57,7 @@ const IDS = [
   'config/pack-shadowed',
   'config/pack-hiding-not-carried',
   'config/pack-setting-not-carried',
+  'config/folder-map-not-carried',
   'config/pack-setting-differs',
   'config/leftover-settings-file',
   'config/theme-scheme-mismatch',
@@ -80,8 +81,8 @@ const IDS = [
 
 // ---- literal facts the page shows ----
 
-test('the forty-four finding ids, as a literal list, registry first and then the build', () => {
-  assert.equal(IDS.length, 44);
+test('the forty-five finding ids, as a literal list, registry first and then the build', () => {
+  assert.equal(IDS.length, 45);
   assert.deepEqual(facts.map((f) => f.key), IDS);
 });
 
