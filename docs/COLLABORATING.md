@@ -107,6 +107,29 @@ addendum, "How `check` reads the hiding settings now"). The facade seeds the rul
 when it loads, before its first pin require, because the pin's settings registry loads every
 character-sheet template.
 
+For a vault whose settings moved to `_meta/vault-config.yaml`
+([ADR 0071](decisions/0071-moved-vault-settings.md)), `readPublishSettings` takes the text of both
+settings files (`{ md, yaml }`), served to the pin for one synchronous call by `withServedSettings`,
+and the facade adds these exports:
+
+- `settingsLayoutOf` (`lib/settings` `layoutOf`): which layout a vault is on, `new`, `legacy` or `none`.
+- `resolveSiteConfig` (`lib/config.js` `resolveConfig`): the pack with each moved key overwritten, or
+  removed, by what the vault's settings resolve. `contextFromSite` in `src/cli/check.js` uses it.
+- `settingFaults` and `readSettingValues` (`lib/settings` `readSettings`): the reader's faults, and its
+  values and their origins by dotted name. `src/checks/carry.js` builds its findings from the
+  `old-name` faults with source `site`.
+- `settingEntry` (`lib/settings` `REGISTRY`): one setting's registry entry, so a rule that depends on
+  `was` or `read: false` reads it from the pin.
+- `stripMovedSettings`: a site config with every key the pin has moved taken out. The pin's own
+  `stripSiteKeys` (`lib/settings/move.js`) is not exported, so this rebuilds it from the registry
+  (`movedKeys`, `siteFolderKeys` and the `was` entries). `writeStagedConfig` uses it on a moved vault.
+- `planSettingsCarry` and `applySettingsCarry` (`lib/settings/move.js` `planMove` with `foldSiteFile`,
+  and `applyMove`): the carry. Every call passes its own `pinCheck`, so the move never starts a program.
+- `applySettingsChanges` (`lib/settings/write.js` `applyChanges`): sets `player_site.title` and
+  `player_site.folder_map`, which the move drops (upstream AntTheLimey/gm-apprentice#539).
+- `stricterCallouts` (`lib/settings/legacy.js`) and `headingKey` (`lib/heading-key.js`): how the carry
+  checks compare callout rules and section names, the same way the build does.
+
 Any change to one of these exported functions' name, signature, or return shape is a break. A
 rename or removed export is the single most disruptive kind of upstream change from Scriptorium's
 side, because every consumer of the facade goes through this one file.
@@ -316,7 +339,14 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   argument on a facade function is the quiet kind of break: nothing fails, the model just stops
   matching the build.
 - **`src/cli/check.js`'s shape check** (`assertScanKeysPresent`, described above) is the
-  Scriptorium-side gate on this contract.
+  Scriptorium-side gate on this contract. It applies only to a vault on `_meta/vault-config.md`. On a
+  vault whose settings moved to `_meta/vault-config.yaml`, `folderMap` and `excludeDirs` belong in the
+  yaml, and `config/folder-map-not-carried` is the gate instead (ADR 0071, section 3).
+- **`_meta/vault-config.yaml`** (from publish-v1.26.0, written by gm-apprentice's settings move): read
+  only through the pin's own reader, through the facade, with the text served from
+  `src/vault/read.js`. On such a vault the pin no longer reads the moved keys from `vault.config.json`,
+  so `src/checks/carry.js` reports each pack value the yaml lacks, and `gm-scriptorium carry` folds them
+  in with the pin's own move (ADR 0071). Scriptorium never moves a vault itself.
 - **`src/vault/publishset.js`** reads a vault's settings with the generator's own `loadPublishConfig`
   (from publish-v1.26.0, through the facade's `readPublishSettings`, which hands it the settings file
   read through `src/vault/read.js`). Up to publish-v1.21.0 it hand-ported that merge
@@ -542,9 +572,18 @@ easier to catch or avoid:
    (`scripts/vendor/gm-apprentice-publish-LICENSE-CODE.txt`) to produce a compliant notices file at
    all. A `LICENSE` file inside `tools/publish` (even a copy of the root one) would remove that
    separate vendoring step.
-6. **A renamed or removed export** from any of the modules the facade re-exports
+6. **The carry leans on the pin's move internals.** `stripMovedSettings` rebuilds the pin's private
+   `stripSiteKeys` from the registry, a parity test compares it with the keys `planMove` removes, and
+   `src/vault/settingscarry.js` rewrites the pin's plan lines so they name the pack instead of the
+   scratch copy. A change to `planMove`'s line wording, its `carried` and `dropped` lists, or which keys
+   it strips can quietly change what the carry says or keeps. The title and folder-map step (upstream
+   #539) must come out when a pin carries that fix, or it will write values the pin already wrote.
+   Exporting `stripSiteKeys` and loading the child-process module lazily (upstream #535) would remove
+   two of these.
+7. **A renamed or removed export** from any of the modules the facade re-exports
    (`lib/processor.js`, `lib/publish-decision.js`, `lib/manifest.js`, `lib/config.js`,
-   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`, `lib/banners.js`, `lib/wikilink.js`) is the highest-blast-radius
+   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`, `lib/banners.js`, `lib/wikilink.js`, and from
+   ADR 0071 `lib/settings/index.js`, `lib/settings/move.js`, `lib/settings/write.js`, `lib/settings/legacy.js` and `lib/heading-key.js`) is the highest-blast-radius
    single change, because every current and future Scriptorium consumer of that function goes
    through the one facade file.
 

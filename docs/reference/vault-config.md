@@ -13,6 +13,11 @@ are described in
 The settings that belong to your computer are in [the settings file](config-toml.md), and the look and
 words of the site are in [the pack file](pack-toml.md).
 
+*Since 0.6.0.* An update of the gm-apprentice plugin can move the vault's settings into
+`_meta/vault-config.yaml`. GM-Scriptorium reads that file instead, and the settings this page lists
+for `vault.config.json` then belong in it. [Keep building after gm-apprentice moves your vault's
+settings](../how-to/vault-settings-moved.md) explains what changes and how to move them.
+
 ## Where each file lives
 
 `_meta/vault-config.md` sits inside the vault, at `_meta/vault-config.md`. It is an ordinary note with
