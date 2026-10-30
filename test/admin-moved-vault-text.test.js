@@ -98,3 +98,10 @@ test('the layouts\' summary on the old layout is unchanged', () => {
     ],
   );
 });
+
+test('the Theme screen\'s palette note names the file the palette is read from', () => {
+  const mismatch = { paletteScheme: 'light', background: '#fbf6ea', theme: 'noir', themeScheme: 'dark' };
+  assert.equal(PK.mismatchText(mismatch, 'legacy'), "Your vault's palette is light (#fbf6ea in vault-config.md) and noir is dark.");
+  assert.equal(PK.mismatchText(mismatch, undefined), "Your vault's palette is light (#fbf6ea in vault-config.md) and noir is dark.");
+  assert.equal(PK.mismatchText(mismatch, 'new'), "Your vault's palette is light (#fbf6ea in _meta/vault-config.yaml) and noir is dark.");
+});

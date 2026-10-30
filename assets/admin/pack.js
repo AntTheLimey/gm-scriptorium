@@ -250,6 +250,13 @@
     pill: 'read-only',
   };
 
+  /** The Theme screen's palette note. On a moved vault (rung 3b) the palette is read from
+   * _meta/vault-config.yaml, so the note names that file. */
+  function mismatchText(mismatch, settingsLayout) {
+    var file = settingsLayout === 'new' ? '_meta/vault-config.yaml' : 'vault-config.md';
+    return "Your vault's palette is " + mismatch.paletteScheme + ' (' + mismatch.background + ' in ' + file + ') and ' + mismatch.theme + ' is ' + mismatch.themeScheme + '.';
+  }
+
   var TITLE_SOFT = 40;
   var TAGLINE_SOFT = 140;
 
@@ -283,6 +290,7 @@
     summaryRows: summaryRows,
     cardModel: cardModel,
     MOVED_SUMMARY: MOVED_SUMMARY,
+    mismatchText: mismatchText,
     countState: countState,
     heroArt: heroArt,
   };
@@ -488,18 +496,7 @@
     function updateMismatchNote() {
       var mismatch = ScriptoriumAdmin.SL.schemeMismatch(selected, themes, state.palette);
       if (mismatch) {
-        setText(
-          mismatchP1,
-          "Your vault's palette is " +
-            mismatch.paletteScheme +
-            ' (' +
-            mismatch.background +
-            ' in vault-config.md) and ' +
-            mismatch.theme +
-            ' is ' +
-            mismatch.themeScheme +
-            '.',
-        );
+        setText(mismatchP1, PK.mismatchText(mismatch, state.settingsLayout));
         mismatchNote.hidden = false;
       } else {
         mismatchNote.hidden = true;

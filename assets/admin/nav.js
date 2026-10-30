@@ -459,15 +459,6 @@
   }
 
   /**
-   * V1e-9 (SD-102, D-5): the Advanced group's guard marker, for the one `item.guarded` nav entry
-   * (vault-config.md). A read-only campaign always shows "read-only", regardless of `editing`
-   * (which can never become true there in the first place -- D-18).
-   *
-   * @param {boolean} writable
-   * @param {boolean} editing
-   * @returns {{cls: string, text: string}}
-   */
-  /**
    * Rung 3b: on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml, the two screens
    * that edit the old files say where those settings live now. Only these fields change; the id, icon,
    * group and everything else stay the item's own.
@@ -492,6 +483,15 @@
     return Object.assign({}, base, MOVED_TEXT[id]);
   }
 
+  /**
+   * V1e-9 (SD-102, D-5): the Advanced group's guard marker, for the one `item.guarded` nav entry
+   * (vault-config.md). A read-only campaign always shows "read-only", regardless of `editing`
+   * (which can never become true there in the first place -- D-18).
+   *
+   * @param {boolean} writable
+   * @param {boolean} editing
+   * @returns {{cls: string, text: string}}
+   */
   function guardMarker(writable, editing) {
     if (writable === false) return { cls: 'a1-ro', text: 'read-only' };
     if (editing === true) return { cls: 'a1-warnpill', text: 'editing' };
