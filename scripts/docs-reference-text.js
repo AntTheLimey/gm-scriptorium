@@ -1112,8 +1112,8 @@ module.exports = deepFreeze({
     },
     'config/folder-map-missing': {
       since: '0.6.0',
-      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, and they set no folder map, or one the generator cannot read. The generator would map no folder and publish almost nothing, with no error, so it is an ERROR, and a build that skips the check, or overrides it, refuses too, with exit 3. It fires when the campaign pack holds no folder map for the carry to bring, for example after a carry, and also for a folder map the generator cannot read whatever the pack holds, because the carry keeps a value the vault\'s settings hold. The message names the backups folder when a carry kept a copy of the yaml.',
-      action: 'Set or fix `player_site.folder_map` in `_meta/vault-config.yaml`. If a carry ran, the message names the folder that holds its copy of the yaml, which you can restore the folder map from.',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, and they set no folder map, or one the generator cannot read. The generator would map no folder and publish almost nothing, with no error, so it is an ERROR, and a build that skips the check, or overrides it, refuses too, with exit 3. It fires when the campaign pack holds no folder map for the carry to bring, for example after a carry, and also for a folder map the generator cannot read whatever the pack holds, because the carry keeps a value the vault\'s settings hold. When a backup that a carry or init kept holds a folder map, the message names that file: a copy of the yaml that holds one, or else the pack\'s copy, where it is under `folderMap`.',
+      action: 'Set or fix `player_site.folder_map` in `_meta/vault-config.yaml`. If the message names a backup, take the folder map from that file.',
     },
     'config/pack-setting-differs': {
       since: '0.6.0',

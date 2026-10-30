@@ -468,7 +468,8 @@ test('N1: a carried vault whose yaml has no folder map is a folder-map-missing e
   );
 });
 
-test('N1: when a carry backup of the yaml exists, the folder-map-missing error names the folder it is in', () => {
+/** The missing-map finding for a carried vault whose yaml lost its map, with these files in its backups folder. */
+function missingWithBackups(files) {
   let dir;
   const { findings } = carriedFindings({}, {
     yamlMap: null,
@@ -477,16 +478,44 @@ test('N1: when a carry backup of the yaml exists, the folder-map-missing error n
       dir = path.join(root, 'cfg', 'backups', 'campaign-x');
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(cfg, 'config_version = 1\n');
-      fs.writeFileSync(path.join(dir, 'vault-config-20261030T100000000Z-abcdef.yaml.bak'), 'version: 1\n');
+      for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), text);
       return cfg;
     },
   });
   const found = findings.filter((f) => f.id === 'config/folder-map-missing');
   assert.equal(found.length, 1);
-  assert.equal(
-    found[0].message,
-    `_meta/vault-config.yaml sets no player_site.folder_map, so the build would publish none of the vault's folders. Set player_site.folder_map in _meta/vault-config.yaml, or restore it from a copy kept in ${dir}.`,
-  );
+  return { message: found[0].message, dir };
+}
+
+const MISSING_LEAD = "_meta/vault-config.yaml sets no player_site.folder_map, so the build would publish none of the vault's folders. Set player_site.folder_map in _meta/vault-config.yaml";
+const YAML_NO_MAP = 'version: 1\n\nplayer_site:\n  title: "Old"\n';
+const YAML_WITH_MAP = 'version: 1\n\nplayer_site:\n  folder_map:\n    Sessions: sessions\n';
+
+test('R1: a yaml backup that holds a folder map is named, the newest of those that do', () => {
+  const { message, dir } = missingWithBackups({
+    'vault-config-20261029T100000000Z-aaaaaa.yaml.bak': YAML_WITH_MAP,
+    'vault-config-20261030T100000000Z-bbbbbb.yaml.bak': YAML_WITH_MAP,
+    'vault-config-20261031T100000000Z-cccccc.yaml.bak': YAML_NO_MAP,
+    'vault.config-20261030T100000000Z-dddddd.json.bak': '{"folderMap": {"Sessions": "sessions"}}',
+  });
+  assert.equal(message, `${MISSING_LEAD}, or restore it from the copy of that file kept at ${path.join(dir, 'vault-config-20261030T100000000Z-bbbbbb.yaml.bak')}.`);
+});
+
+test('R1: with no yaml backup holding a folder map, the pack backup that holds folderMap is named', () => {
+  const { message, dir } = missingWithBackups({
+    'vault-config-20261030T100000000Z-aaaaaa.yaml.bak': YAML_NO_MAP,
+    'vault.config-20261030T100000000Z-bbbbbb.json.bak': '{"siteTitle": "Old", "folderMap": {"Sessions": "sessions"}}',
+    'vault.config-20261031T100000000Z-cccccc.json.bak': '{}',
+  });
+  assert.equal(message, `${MISSING_LEAD}. The pack's folderMap as it was before the carry is kept at ${path.join(dir, 'vault.config-20261030T100000000Z-bbbbbb.json.bak')}.`);
+});
+
+test('R1: backups that hold no folder map give no restore hint', () => {
+  const { message } = missingWithBackups({
+    'vault-config-20261030T100000000Z-aaaaaa.yaml.bak': YAML_NO_MAP,
+    'vault.config-20261030T100000000Z-bbbbbb.json.bak': '{"siteTitle": "Old"}',
+  });
+  assert.equal(message, `${MISSING_LEAD}.`);
 });
 
 test('N1: a carried vault with a readable yaml folder map has no folder-map-missing error (control)', () => {

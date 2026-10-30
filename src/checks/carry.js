@@ -75,30 +75,63 @@ function carryHint(campaign, vaultPath, packConfigPath) {
 const FOLDER_MAP = 'player_site.folder_map';
 
 /**
- * The per-machine folder that holds this campaign's backups, when it holds a copy of the yaml a carry
- * or init made; else null. Reads only.
+ * Where a GM can get a folder map back from: a copy that really holds one, among the backups a carry or
+ * init kept in the per-machine folder. The carry's copy of the yaml is taken before the carry writes the
+ * folder map, so it usually holds none; the pack's copy then holds it as `folderMap`. Reads only.
+ *
+ * Order: the newest yaml copy whose player_site.folder_map the pin reads (`yaml`), else the newest pack
+ * copy with a non-empty folderMap object (`pack`), else null.
  *
  * @param {string|null} configPath Scriptorium's own config file
  * @param {string} vaultPath
  * @param {string} campaign
- * @returns {string|null}
+ * @returns {{ kind: 'yaml'|'pack', file: string }|null}
  */
-function yamlBackupFolder(configPath, vaultPath, campaign) {
+function folderMapCopy(configPath, vaultPath, campaign) {
+  let dir;
+  let names;
   try {
     const machine = resolveMachineDir({ configPath, vaultPath });
     if (!machine.ok) return null;
-    const dir = path.join(machine.dir, BACKUPS_DIRNAME, campaignSegment(campaign));
-    return fs.readdirSync(dir).some((n) => /^vault-config-.*\.yaml\.bak$/.test(n)) ? dir : null;
+    dir = path.join(machine.dir, BACKUPS_DIRNAME, campaignSegment(campaign));
+    names = fs.readdirSync(dir).sort().reverse(); // the stamp in each name sorts oldest first
   } catch {
     return null;
   }
+  const read = (name) => {
+    try {
+      return fs.readFileSync(path.join(dir, name), 'utf8');
+    } catch {
+      return null;
+    }
+  };
+  for (const name of names.filter((n) => /^vault-config-.*\.yaml\.bak$/.test(n))) {
+    const text = read(name);
+    if (text === null) continue;
+    try {
+      if (pinned.readSettingValues(vaultPath, {}, { md: null, yaml: text }).origins[FOLDER_MAP] === 'file') return { kind: 'yaml', file: path.join(dir, name) };
+    } catch {
+      // a copy the pin cannot read holds nothing to restore
+    }
+  }
+  for (const name of names.filter((n) => /^vault\.config-.*\.json\.bak$/.test(n))) {
+    const text = read(name);
+    if (text === null) continue;
+    try {
+      const map = JSON.parse(text).folderMap;
+      if (map && typeof map === 'object' && !Array.isArray(map) && Object.keys(map).length > 0) return { kind: 'pack', file: path.join(dir, name) };
+    } catch {
+      // not JSON: nothing to restore from it
+    }
+  }
+  return null;
 }
 
 /**
  * N1: on a moved vault, the vault's own folder map is not set or cannot be read, and the pack holds no
  * folder map that the carry checks already name. The build would map no folder and publish almost
- * nothing, so it is an error in check and the build refuses it. One sentence saying what to do,
- * naming the backups folder when a carry or init kept a copy of the yaml; null when the map is fine.
+ * nothing, so it is an error in check and the build refuses it. What to do, naming a backup only when
+ * it really holds a folder map (folderMapCopy); null when the map is fine.
  *
  * @param {{ origin: string, shown: * }} folderMap from unheldPackSettings
  * @param {{ configPath?: string|null, vaultPath: string, campaign: string }} where
@@ -106,12 +139,13 @@ function yamlBackupFolder(configPath, vaultPath, campaign) {
  */
 function yamlFolderMapProblem(folderMap, { configPath, vaultPath, campaign }) {
   if (!folderMap || folderMap.origin === 'file') return null;
-  const backup = yamlBackupFolder(configPath, vaultPath, campaign);
-  const restore = backup ? `, or restore it from a copy kept in ${backup}` : '';
-  if (folderMap.origin === 'fault') {
-    return `${FOLDER_MAP} in _meta/vault-config.yaml is ${show(folderMap.shown)}, which cannot be read, so the build would publish none of the vault's folders. Fix ${FOLDER_MAP} in _meta/vault-config.yaml${restore}.`;
-  }
-  return `_meta/vault-config.yaml sets no ${FOLDER_MAP}, so the build would publish none of the vault's folders. Set ${FOLDER_MAP} in _meta/vault-config.yaml${restore}.`;
+  const copy = folderMapCopy(configPath, vaultPath, campaign);
+  const inline = copy && copy.kind === 'yaml' ? `, or restore it from the copy of that file kept at ${copy.file}` : '';
+  const after = copy && copy.kind === 'pack' ? ` The pack's folderMap as it was before the carry is kept at ${copy.file}.` : '';
+  const lead = folderMap.origin === 'fault'
+    ? `${FOLDER_MAP} in _meta/vault-config.yaml is ${show(folderMap.shown)}, which cannot be read, so the build would publish none of the vault's folders. Fix`
+    : `_meta/vault-config.yaml sets no ${FOLDER_MAP}, so the build would publish none of the vault's folders. Set`;
+  return `${lead} ${FOLDER_MAP} in _meta/vault-config.yaml${inline}.${after}`;
 }
 
 /** The vault's settings file sets this setting: readably ('file'), or with a value the pin cannot read ('fault'). The carry never overwrites either. */

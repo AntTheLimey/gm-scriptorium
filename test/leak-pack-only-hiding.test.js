@@ -237,28 +237,33 @@ test('moved, with a yaml folder map the generator cannot read: build --no-check 
  * refuses it whatever its flags. The carry's own copy of the yaml is named.
  */
 function carried(root) {
-  const f = fixture(root, 'new', {});
+  // The reviewer's shape: the yaml has no folder map until the carry writes the pack's into it.
+  const f = fixture(root, 'new', {}, { yamlMap: false });
   const res = run(root, ['carry', '--yes']);
   assert.equal(res.code, 0, res.all);
   assert.deepEqual(JSON.parse(fs.readFileSync(f.pack, 'utf8')), {}, 'the carry emptied the pack');
-  return { ...f, backups: path.join(root, 'backups', 'campaign-t') };
+  const backups = path.join(root, 'backups', 'campaign-t');
+  // The carry's copy of the yaml is from before it wrote the folder map; the pack's copy holds folderMap.
+  const packCopy = fs.readdirSync(backups).filter((n) => /^vault\.config-.*\.json\.bak$/.test(n));
+  assert.equal(packCopy.length, 1);
+  return { ...f, packCopy: path.join(backups, packCopy[0]) };
 }
 
-const UNREADABLE = (backups) =>
+const UNREADABLE = (packCopy) =>
   'campaign "t": player_site.folder_map in _meta/vault-config.yaml is "Sessions", which cannot be read, so the build would publish none of the vault\'s folders. ' +
-  `Fix player_site.folder_map in _meta/vault-config.yaml, or restore it from a copy kept in ${backups}. Nothing was written.`;
-const MISSING = (backups) =>
+  `Fix player_site.folder_map in _meta/vault-config.yaml. The pack's folderMap as it was before the carry is kept at ${packCopy}. Nothing was written.`;
+const MISSING = (packCopy) =>
   'campaign "t": _meta/vault-config.yaml sets no player_site.folder_map, so the build would publish none of the vault\'s folders. ' +
-  `Set player_site.folder_map in _meta/vault-config.yaml${backups ? `, or restore it from a copy kept in ${backups}` : ''}. Nothing was written.`;
+  `Set player_site.folder_map in _meta/vault-config.yaml.${packCopy ? ` The pack's folderMap as it was before the carry is kept at ${packCopy}.` : ''} Nothing was written.`;
 
 for (const flag of ['--no-check', '--force-check']) {
-  test(`N1, carried, build ${flag}: a yaml folder map that cannot be read refuses with exit 3 and names the backup folder`, () => {
+  test(`N1, carried, build ${flag}: a yaml folder map that cannot be read refuses with exit 3 and names the pack's copy`, () => {
     withScratch((root) => {
       const f = carried(root);
       replaceYamlFolderMap(f.vault, '  folder_map: "Sessions"');
       const res = run(root, ['build', flag]);
       assert.equal(res.code, 3, res.all);
-      assert.ok(res.all.split('\n').includes(UNREADABLE(f.backups)), res.all);
+      assert.ok(res.all.split('\n').includes(UNREADABLE(f.packCopy)), res.all);
       assert.ok(!fs.existsSync(f.site));
     });
   });
@@ -269,7 +274,7 @@ for (const flag of ['--no-check', '--force-check']) {
       replaceYamlFolderMap(f.vault, null);
       const res = run(root, ['build', flag]);
       assert.equal(res.code, 3, res.all);
-      assert.ok(res.all.split('\n').includes(MISSING(f.backups)), res.all);
+      assert.ok(res.all.split('\n').includes(MISSING(f.packCopy)), res.all);
       assert.ok(!fs.existsSync(f.site));
     });
   });

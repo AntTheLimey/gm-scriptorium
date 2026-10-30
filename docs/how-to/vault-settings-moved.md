@@ -42,7 +42,7 @@ If the pack still holds settings the vault's settings file does not, `check` nam
   one. The carry fixes it.
 - `config/folder-map-missing` is an error too. The vault's settings set no folder map, or one that
   can't be read, and the carry can't help. Set or fix `player_site.folder_map` in
-  `_meta/vault-config.yaml`. If a carry ran, the message names the folder holding its copy of that
+  `_meta/vault-config.yaml`. If a backup holds a folder map, the message names that
   file.
 - `config/pack-setting-not-carried` is a warning. A setting such as the site title is only in the
   pack, so the site uses the built-in one.
