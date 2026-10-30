@@ -14,6 +14,8 @@ const { packDirFor, createPackEntries } = require('../vault/packwrite');
 const { inspectTarget, createVault } = require('../vault/vaultcreate');
 const { remotePaths } = require('../remote/paths');
 const { createPrompter } = require('./prompt');
+const { planCarry, applyCarry, discardCarry } = require('../vault/settingscarry');
+const { resolveMachineDir } = require('../config/machinedir');
 const read = require('../vault/read');
 const { packShadowedMessage } = require('../checks/configdiv');
 const { ConfigError, ScriptoriumError, VaultUnreachableError } = require('../util/errors');
@@ -24,6 +26,9 @@ const {
   SCAFFOLD,
   defaultOutputFor,
   defaultTitleFor,
+  isMovedVault,
+  movedVaultTitle,
+  stripEntriesForMovedVault,
   composeVaultConfigJson,
   scaffoldEntries,
   isNonEmptyForeignOutput,
@@ -465,7 +470,15 @@ async function runInitCommand(
     // --- Step 4: title ------------------------------------------------
     const jsonPath = path.join(packDir, 'vault.config.json');
     let title;
-    if (fs.existsSync(jsonPath)) {
+    const moved = isMovedVault(vaultAbs);
+    const vaultTitle = moved ? movedVaultTitle(vaultAbs) : null;
+    if (vaultTitle !== null) {
+      if (flags.title !== undefined && flags.title !== vaultTitle) {
+        throw new ScriptoriumError("this vault's title is set in _meta/vault-config.yaml; change it there");
+      }
+      title = vaultTitle;
+      emit(`site title: ${JSON.stringify(vaultTitle)} (from _meta/vault-config.yaml; init never edits it, edit that file to change it)`);
+    } else if (fs.existsSync(jsonPath)) {
       const existingJson = loadPackConfig(jsonPath, name);
       const existingTitle = existingJson.siteTitle;
       if (flags.title !== undefined && flags.title !== existingTitle) {
@@ -510,12 +523,58 @@ async function runInitCommand(
       emit(`left untouched: ${untouched.map(displayEntry).join(', ')}`);
     }
     if (missing.length > 0) {
-      if (!flags.yes) {
-        const list = missing.map(displayEntry).join(', ');
-        const proceed = await askYesNo(`Create ${list} in ${packDir}? [Y/n]: `, true);
-        if (!proceed) throw abortError();
+      let entries = scaffoldEntries(vaultAbs, missing, { title, theme });
+      // A moved vault's settings file holds the site settings, so the pack is written without them and
+      // the whole composed site config is carried into that file (only what it does not already set).
+      let planned = null;
+      let machineDir = null;
+      if (moved && missing.some((entry) => entry.rel === 'vault.config.json')) {
+        const stripped = stripEntriesForMovedVault(entries);
+        entries = stripped.entries;
+        planned = planCarry({
+          vaultPath: vaultAbs,
+          campaign: name,
+          packConfigPath: jsonPath,
+          siteConfig: stripped.siteConfig,
+          writePack: false,
+        });
+        if (planned.state === 'blocked') {
+          throw new VaultUnreachableError(planned.blockers.join('\n'), { path: vaultAbs, campaign: name, reason: 'carry-blocked' });
+        }
+        if (planned.state === 'ready') {
+          const machine = resolveMachineDir({ configPath, vaultPath: vaultAbs });
+          if (!machine.ok) {
+            discardCarry(planned);
+            throw new ScriptoriumError(`${machine.reason} Nothing was written.`, { campaign: name });
+          }
+          machineDir = machine.dir;
+        } else {
+          planned = null;
+        }
       }
-      const entries = scaffoldEntries(vaultAbs, missing, { title, theme });
+      try {
+        if (planned) {
+          emit(
+            "This vault keeps its settings in _meta/vault-config.yaml, so init sets the site title, the folder map and the hide lists there. " +
+              'A setting the file already has is kept as it is.',
+          );
+        }
+        if (!flags.yes) {
+          const list = missing.map(displayEntry).join(', ');
+          const also = planned ? " and carry these settings into the vault's settings file" : '';
+          const proceed = await askYesNo(`Create ${list} in ${packDir}${also}? [Y/n]: `, true);
+          if (!proceed) throw abortError();
+        }
+        if (planned) {
+          const done = applyCarry(planned, { machineDir, campaign: name, writePack: false });
+          if (done.unmoved.length > 0) {
+            emit(`not set in _meta/vault-config.yaml, for you to set there: ${done.unmoved.map((u) => u.setting).join(', ')}`);
+          }
+          emit(`A copy of _meta/vault-config.yaml as it was is kept at ${done.backups.yaml}`);
+        }
+      } finally {
+        discardCarry(planned);
+      }
       const result = createPackEntries(vaultAbs, entries, { campaign: name });
       emit(`created in ${result.packDir}: ${result.created.join(', ')}`);
     }

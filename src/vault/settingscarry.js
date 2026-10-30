@@ -249,7 +249,12 @@ function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack 
 
   const goes = pinned.stripMovedSettings(pack).removed.filter((n) => !stayNames.includes(n));
   const writesYaml = writes.includes(path.resolve(path.join(realVault, ...YAML_REL)));
-  if (carried.length === 0 && dropped.length === 0 && !writesYaml && goes.length === 0) {
+  // With no pack to rewrite (init), only a change to the vault's settings counts: a hide entry the pin would
+  // add, or the title and folder map the vault lacks. The pack's own leftovers are no reason to back up and write.
+  const nothingToDo = writePack
+    ? carried.length === 0 && dropped.length === 0 && !writesYaml && goes.length === 0
+    : !pinned.planChangesVaultSettings(plan) && own.length === 0;
+  if (nothingToDo) {
     removeScratch(scratchDir);
     return { state: 'nothing', lines: stayLines(unmoved, packConfigPath), blockers: [], plan, internal: null, unmoved };
   }
