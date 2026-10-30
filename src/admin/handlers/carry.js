@@ -39,6 +39,11 @@ const NO_TITLE = "No site title is set in the vault's settings file (_meta/vault
 const NOTHING = 'There is nothing to carry: the pack holds nothing the carry can move.';
 const CHANGED =
   "The pack or the vault's settings file changed since these settings were shown. Nothing was written. Look at them again before carrying.";
+const NO_BACKUP_FOLDER = "GM-Scriptorium's own folder can't hold backups, so the carry can't keep a copy of both files first. Nothing was written.";
+// applyCarry's partial-failure messages name the command; in the panel the button does the same job.
+const CLI_AGAIN = 'Run "gm-scriptorium carry" again';
+const PANEL_AGAIN = 'Press "Carry these settings" again';
+const inPanelWords = (message) => String(message).split(CLI_AGAIN).join(PANEL_AGAIN);
 // applyCarry's own refusal when a file changed between its plan and its apply (src/vault/settingscarry.js).
 const APPLY_CHANGED_RE = /changed since the carry was planned/;
 
@@ -111,7 +116,8 @@ function planAndApply(ctx, { dryRun, baseSha256 }) {
     if (planned.state !== 'ready') throw new HandlerRefusal(409, { error: 'nothing', message: NOTHING });
 
     const machine = machinedir.resolveMachineDir({ configPath: ctx.ctxInfo && ctx.ctxInfo.configPath, vaultPath: ctx.vaultPath });
-    if (!machine.ok) throw new HandlerRefusal(503, { error: 'io', message: `${machine.reason} Nothing was written.` });
+    // machine.reason is written for the vault-config.md editor, so the carry says it in its own words.
+    if (!machine.ok) throw new HandlerRefusal(503, { error: 'io', message: NO_BACKUP_FOLDER });
 
     let done;
     try {
@@ -120,7 +126,7 @@ function planAndApply(ctx, { dryRun, baseSha256 }) {
       if (err instanceof VaultUnreachableError && APPLY_CHANGED_RE.test(err.message)) {
         throw new HandlerRefusal(409, { error: 'changed', message: CHANGED });
       }
-      if (err instanceof ScriptoriumError) throw new HandlerRefusal(503, { error: 'io', message: err.message });
+      if (err instanceof ScriptoriumError) throw new HandlerRefusal(503, { error: 'io', message: inPanelWords(err.message) });
       throw err;
     }
     // The vault's settings changed: anything the panel rebuilt from them is read again on demand.

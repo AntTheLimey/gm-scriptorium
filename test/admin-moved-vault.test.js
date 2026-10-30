@@ -58,6 +58,8 @@ function movedCampaign(t, { fold = false, siteConfig = false } = {}) {
     pack: path.join(vaultPath, '_meta', 'scriptorium', 'vault.config.json'),
     yaml: path.join(vaultPath, '_meta', 'vault-config.yaml'),
     backupDir: path.join(fs.realpathSync(path.dirname(configPath)), 'backups', 'campaign-lease'),
+    // The same folder spelled as the config path spells it (the panel names backups this way).
+    backupDirNamed: path.join(path.dirname(configPath), 'backups', 'campaign-lease'),
   };
 }
 
@@ -360,4 +362,100 @@ test('freshness tracks _meta/vault-config.yaml beside the three files the panel 
   const stamp = freshness.takeStamp(h.ctx, 0);
   fs.appendFileSync(fx.yaml, '\n');
   assert.deepEqual(freshness.compareStamp(stamp, freshness.readTrackedShas(h.ctx), 0).savedSince, ['vault-config.yaml']);
+});
+
+// === fix round 1 ================================================================================
+
+test('a title save after the vault is moved while the panel runs answers 409 settings-moved, and the pack is unchanged', async (t) => {
+  const fx = legacyCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  assert.equal(h.ctx.settingsLayout, 'legacy');
+  const pack = path.join(fx.vaultPath, '_meta', 'scriptorium', 'vault.config.json');
+  const before = fs.readFileSync(pack);
+  // gm-apprentice moves the vault; the page has not reloaded its state.
+  fs.renameSync(path.join(fx.vaultPath, '_meta', 'vault-config.md'), path.join(fx.vaultPath, '_meta', 'vault-config.yaml'));
+  const res = await post(h, '/api/pack/settings', { siteTitle: 'A New Name', baseSha256: sha(before), dryRun: false });
+  assert.equal(res.status, 409, res.text);
+  assert.deepEqual(res.json, { error: 'settings-moved', message: TITLE_MOVED });
+  assert.deepEqual(fs.readFileSync(pack), before);
+});
+
+test('carry with no usable folder for backups answers 503 and writes nothing', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const dry = await post(h, '/api/settings/carry', { dryRun: true });
+  const before = snapshot(fx.vaultPath);
+  const realInfo = h.ctx.ctxInfo;
+  h.ctx.ctxInfo = { ...realInfo, configPath: path.join(fx.root, 'no-such-folder', 'config.toml') };
+  try {
+    const res = await post(h, '/api/settings/carry', { dryRun: false, baseSha256: dry.json.baseSha256 });
+    assert.equal(res.status, 503, res.text);
+    assert.deepEqual(res.json, {
+      error: 'io',
+      message: "GM-Scriptorium's own folder can't hold backups, so the carry can't keep a copy of both files first. Nothing was written.",
+    });
+  } finally {
+    h.ctx.ctxInfo = realInfo;
+  }
+  assert.deepEqual(snapshot(fx.vaultPath), before);
+});
+
+test('carry whose pack cannot be rewritten answers 503: the yaml holds everything, the pack is as it was', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const packBefore = fs.readFileSync(fx.pack);
+  const dry = await post(h, '/api/settings/carry', { dryRun: true });
+  const packreplace = require('../src/vault/packreplace');
+  const real = packreplace.replacePackFile;
+  packreplace.replacePackFile = () => {
+    throw Object.assign(new Error('injected'), { code: 'EIO' });
+  };
+  let res;
+  try {
+    res = await post(h, '/api/settings/carry', { dryRun: false, baseSha256: dry.json.baseSha256 });
+  } finally {
+    packreplace.replacePackFile = real;
+  }
+  assert.equal(res.status, 503, res.text);
+  const packBackup = backupsIn(fx.backupDir).filter((n) => n.startsWith('vault.config-'));
+  assert.equal(packBackup.length, 1);
+  assert.deepEqual(res.json, {
+    error: 'io',
+    message:
+      `The vault's settings already hold every value that was carried, but ${fx.pack} could not be rewritten (EIO). ` +
+      "It can stay as it is: the vault's settings are the ones used, and nothing else needs doing. " +
+      `The pack as it was is kept at ${path.join(fx.backupDirNamed, packBackup[0])}.`,
+  });
+  assert.deepEqual(fs.readFileSync(fx.pack), packBefore);
+  assert.match(fs.readFileSync(fx.yaml, 'utf8'), /The Long Lease/);
+});
+
+test('carry whose title cannot be set in the yaml answers 503, says to carry again from the panel, and keeps the title in the pack', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const dry = await post(h, '/api/settings/carry', { dryRun: true });
+  const pinned = require('../src/generator/pinned');
+  const real = pinned.applySettingsChanges;
+  pinned.applySettingsChanges = () => {
+    throw Object.assign(new Error('injected'), { code: 'EIO' });
+  };
+  let res;
+  try {
+    res = await post(h, '/api/settings/carry', { dryRun: false, baseSha256: dry.json.baseSha256 });
+  } finally {
+    pinned.applySettingsChanges = real;
+  }
+  assert.equal(res.status, 503, res.text);
+  const names = backupsIn(fx.backupDir);
+  const yamlBak = path.join(fx.backupDirNamed, names.find((n) => n.startsWith('vault-config-')));
+  const packBak = path.join(fx.backupDirNamed, names.find((n) => n.startsWith('vault.config-')));
+  assert.deepEqual(res.json, {
+    error: 'io',
+    message:
+      `siteTitle and folderMap are still in ${fx.pack}: the vault's settings file could not be written (EIO). ` +
+      'The rest of the carry is done. Press "Carry these settings" again once the file can be written. ' +
+      `The files as they were are kept at ${yamlBak} and ${packBak}.`,
+  });
+  const pack = JSON.parse(fs.readFileSync(fx.pack, 'utf8'));
+  assert.equal(pack.siteTitle, 'The Long Lease');
 });
