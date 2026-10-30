@@ -647,3 +647,13 @@ test('a backup failure leaves everything unchanged', () => {
     assert.equal(Buffer.compare(fs.readFileSync(packOf(vault)), packBefore), 0);
   });
 });
+
+test('the pin\'s "already on the new settings file" line is printed once, not once for the plan and again for the result', () => {
+  withScratch((root) => {
+    setup(root);
+    const res = run(root, ['carry', '--yes']);
+    assert.equal(res.code, 0, res.all);
+    const line = 'This vault is already on the new settings file (_meta/vault-config.yaml).';
+    assert.equal(res.out.split('\n').filter((l) => l === line).length, 1, res.out);
+  });
+});
