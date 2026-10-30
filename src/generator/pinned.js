@@ -362,27 +362,30 @@ function applySettingsChanges(vaultPath, changes) {
 /**
  * A site config with every key the pin has moved into the vault's settings taken out, and the names
  * of what was taken. The pin's own stripSiteKeys (lib/settings/move.js:177) is not exported, so this
- * rebuilds its reading from the registry: the json spelling of each moved key (movedKeys), the five
- * site-folder keys (siteFolderKeys) and every other name the registry's `was` entries give for the
- * site file (the dotted ones, like backend.statusBar). Scriptorium keeps no list of its own. A
- * parent left empty by a dotted removal is removed too. Like the pin's, a key the registry marks as
- * no longer read (landingTagline) is taken out as well, and so is whatever else sits under the root
- * of a dotted name the move carries (a stray fourOhFour.style goes with fourOhFour.message). The
- * input is not changed.
+ * rebuilds its reading from the registry: every name the registry's `was` entries give for the site
+ * file, the dotted ones (backend.statusBar) included. Scriptorium keeps no list of its own. A parent
+ * left empty by a dotted removal is removed too. Like the pin's, a key the registry marks as no
+ * longer read (landingTagline) is taken out as well, and so is whatever else sits under the root of
+ * a dotted name the move carries (a stray fourOhFour.style goes with fourOhFour.message). The input
+ * is not changed.
+ *
+ * `leaveFallback` is the pin's own option of that name: it leaves the five site-folder keys (the
+ * registry entries with `siteFallback`: siteUrl, host, outputDir, cloudflarePagesProject and
+ * preserveDirs) where they are. The move takes them out, because it carries them into the yaml. A
+ * build must keep them, because the generator still reads them from the site file while the yaml
+ * sets none (lib/settings/read.js, siteValueOf). None of the five hides anything.
  *
  * @param {object} rawSiteConfig
+ * @param {{ leaveFallback?: boolean }} [opts]
  * @returns {{ config: object, removed: string[] }}
  */
-function stripMovedSettings(rawSiteConfig) {
-  const names = new Set([
-    ...pinSettings.movedKeys().map((k) => k.json),
-    ...pinSettings.siteFolderKeys().map((k) => k.key),
-  ]);
+function stripMovedSettings(rawSiteConfig, { leaveFallback = false } = {}) {
+  const names = new Set();
   const roots = new Set();
   for (const e of pinSettings.REGISTRY) {
     for (const w of e.was || []) {
       if (w.in !== 'site') continue;
-      names.add(w.name);
+      if (!(leaveFallback && e.siteFallback)) names.add(w.name);
       if (!e.legacyOnly && (e.siteFallback || w.carryOnly || w.read === false) && w.name.includes('.')) roots.add(w.name.split('.')[0]);
     }
   }
@@ -406,6 +409,17 @@ function stripMovedSettings(rawSiteConfig) {
     delete config[root];
   }
   return { config, removed };
+}
+
+/**
+ * The five site-folder keys (the registry entries with `siteFallback`, from the pin's own
+ * siteFolderKeys in lib/settings/registry.js): each key's site-file name, the setting it became, and
+ * that setting's built-in value (undefined when it has none).
+ *
+ * @returns {{ key: string, name: string, default: * }[]}
+ */
+function siteFolderKeys() {
+  return pinSettings.siteFolderKeys().map(({ key, name }) => ({ key, name, default: (settingEntry(name) || {}).default }));
 }
 
 // lib/settings/legacy.js:455 (module.exports): the stricter of two exclude_callouts values (true beats a
@@ -643,6 +657,7 @@ module.exports = {
   readSettingValues,
   settingsLayoutOf,
   stripMovedSettings,
+  siteFolderKeys,
   planSettingsCarry,
   applySettingsCarry,
   applySettingsChanges,

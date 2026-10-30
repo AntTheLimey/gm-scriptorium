@@ -146,6 +146,35 @@ test('stageConfig on a moved vault hands back the output folder as an override; 
   }
 });
 
+test('a moved vault\'s staged config keeps the pack\'s site-folder keys the generator still reads, except outputDir (through contextFromSite)', () => {
+  withMoved((vault, root) => {
+    // The pack as a GM might leave it after the move: the site-folder keys, which the generator still
+    // reads from the site file while the yaml sets none (player_site.url and its siblings).
+    const pack = path.join(vault, '_meta', 'scriptorium', 'vault.config.json');
+    fs.writeFileSync(pack, JSON.stringify({
+      siteUrl: 'https://example.org/longlease/',
+      cloudflarePagesProject: 'longlease',
+      preserveDirs: ['keep-me'],
+      outputDir: 'docs',
+    }, null, 2));
+    const yaml = fs.readFileSync(path.join(vault, '_meta', 'vault-config.yaml'), 'utf8');
+    assert.doesNotMatch(yaml, /^\s*(url|cloudflare_project|keep|output):/m, 'the yaml sets none of these four');
+    const site = { siteSource: 'pack', siteConfigPath: pack, siteDir: path.dirname(pack), packShadowed: null };
+    const info = contextFromSite({ campaign: 'x', vault }, vault, site);
+    const out = path.join(root, 'out');
+    const staged = stageConfig(info.jsonConfig, vault, path.join(root, 'staging'), out);
+    assert.deepEqual(JSON.parse(fs.readFileSync(staged.configPath, 'utf8')), {
+      siteUrl: 'https://example.org/longlease/',
+      cloudflarePagesProject: 'longlease',
+      preserveDirs: ['keep-me'],
+      // No host: the yaml's player_site.host is "github-pages", the built-in value, so the generator reads
+      // the same without it, and a staged one would only make it warn that host "moves to" the vault.
+      vaultPath: vault,
+    });
+    assert.equal(staged.outputDirOverride, out);
+  }, { inVaultPack: true });
+});
+
 test('the staged config of a legacy vault is unchanged: every key verbatim', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-moved-read-'));
   try {

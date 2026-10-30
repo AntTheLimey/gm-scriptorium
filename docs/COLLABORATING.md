@@ -121,12 +121,20 @@ and the facade adds these exports:
 - `settingEntry` (`lib/settings` `REGISTRY`): one setting's registry entry, so a rule that depends on
   `was` or `read: false` reads it from the pin.
 - `stripMovedSettings`: a site config with every key the pin has moved taken out. The pin's own
-  `stripSiteKeys` (`lib/settings/move.js`) is not exported, so this rebuilds it from the registry
-  (`movedKeys`, `siteFolderKeys` and the `was` entries). `stageConfig` (`src/build/stage.js`) uses it on a
-  moved vault, and on that layout also leaves `outputDir` out of the staged file and hands the output
+  `stripSiteKeys` (`lib/settings/move.js`) is not exported, so this rebuilds it from the registry's
+  `was` entries. Its `leaveFallback` option is the pin's own: it leaves the five site-folder keys
+  (`siteUrl`, `host`, `outputDir`, `cloudflarePagesProject`, `preserveDirs`) in place. The carry uses
+  it without the option, to say what the move takes out of the pack. `stageConfig`
+  (`src/build/stage.js`) uses it with the option on a moved vault, because the pin still reads those
+  keys from the site file while the yaml sets none (a pack `siteUrl` sets the address prefix of every
+  page, the 404 page included). A parity test compares each use with what `planMove` takes out.
+  On that layout `stageConfig` also leaves `outputDir` out of the staged file and hands the output
   folder to the pin's `build()` as its `outputDirOverride` option instead, so the pin does not warn that
   the staged file's `outputDir` "moves to `player_site.output`". That option is the pin's own, used by
   its local preview; it also turns off the vault's build steps, which Scriptorium never runs.
+- `siteFolderKeys` (`lib/settings/registry.js`): the five site-folder keys with each one's built-in
+  value. `stageConfig` leaves out a key whose value is the built-in one, which the resolve fills in
+  when neither file sets it, so the pin does not warn that a key nobody wrote "moves to" the vault.
 - `planSettingsCarry` and `applySettingsCarry` (`lib/settings/move.js` `planMove` with `foldSiteFile`,
   and `applyMove`): the carry. Every call passes its own `pinCheck`, so the move never starts a program.
 - `applySettingsChanges` (`lib/settings/write.js` `applyChanges`): sets `player_site.title` and
@@ -576,8 +584,9 @@ easier to catch or avoid:
    (`scripts/vendor/gm-apprentice-publish-LICENSE-CODE.txt`) to produce a compliant notices file at
    all. A `LICENSE` file inside `tools/publish` (even a copy of the root one) would remove that
    separate vendoring step.
-6. **The carry leans on the pin's move internals.** `stripMovedSettings` rebuilds the pin's private
-   `stripSiteKeys` from the registry, a parity test compares it with the keys `planMove` removes, and
+6. **The carry and the build lean on the pin's move internals.** `stripMovedSettings` rebuilds the pin's
+   private `stripSiteKeys` from the registry, a parity test compares it with the keys `planMove` removes
+   (with and without the site-folder keys left in place), and
    `src/vault/settingscarry.js` rewrites the pin's plan lines so they name the pack instead of the
    scratch copy. A change to `planMove`'s line wording, its `carried` and `dropped` lists, or which keys
    it strips can quietly change what the carry says or keeps. The title and folder-map step (upstream

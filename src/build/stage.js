@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { isDeepStrictEqual } = require('util');
 const pinned = require('../generator/pinned');
 
 /*
@@ -80,9 +81,23 @@ function stageConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut) {
   // generator never sees one (the settings it reads come from the vault). runAtomicBuild's signature
   // is pinned (test/gm-link-gate.test.js), so it is handed the resolved pack, not the raw one; the
   // moved keys it holds are overwritten or removed by the resolve, so stripping them gives the same file.
+  // The resolve also fills the site-folder keys from the pack when the yaml sets none.
   const moved = pinned.settingsLayoutOf(vaultPath) === 'new';
-  const staged = moved ? { ...pinned.stripMovedSettings(userJsonConfig).config, vaultPath } : { ...userJsonConfig, vaultPath, outputDir: stagingOut };
-  if (moved) delete staged.outputDir;
+  // The site-folder keys stay (siteUrl, host, cloudflarePagesProject, preserveDirs): the generator still
+  // reads them from the site file while the yaml sets none, as the pin's own leaveFallback leaves them.
+  // outputDir alone goes, because the output folder is handed over as outputDirOverride below.
+  const staged = moved
+    ? { ...pinned.stripMovedSettings(userJsonConfig, { leaveFallback: true }).config, vaultPath }
+    : { ...userJsonConfig, vaultPath, outputDir: stagingOut };
+  if (moved) {
+    delete staged.outputDir;
+    // The resolve fills each site-folder key with its built-in value when neither file sets it (host,
+    // preserveDirs). Staged, the generator would warn on every build that the key "moves to" the vault's
+    // settings, about a key nobody wrote. Left out, the generator reads the same built-in value.
+    for (const { key, default: builtIn } of pinned.siteFolderKeys()) {
+      if (Object.prototype.hasOwnProperty.call(staged, key) && isDeepStrictEqual(staged[key], builtIn)) delete staged[key];
+    }
+  }
   const configPath = path.join(stagingRoot, 'vault.config.json');
   fs.writeFileSync(configPath, JSON.stringify(staged, null, 2));
   return { configPath, outputDirOverride: moved ? stagingOut : null };

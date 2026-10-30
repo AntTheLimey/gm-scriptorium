@@ -276,3 +276,16 @@ test('a moved-vault build prints no warning about an outputDir the GM never wrot
     assert.ok(fs.existsSync(path.join(out, 'index.html')));
   });
 });
+
+test('a moved-vault build whose site file sets none of the site-folder keys prints no "moves to" warning for any of them', () => {
+  withScratch((dir) => {
+    // The staged site file keeps the site-folder keys the GM wrote (ADR 0071, section 2), but not the
+    // built-in values the resolve fills in for keys nobody wrote (host, preserveDirs): the generator
+    // would warn on every build that each "moves to" the vault's settings.
+    const { configPath } = makeMovedCampaign(dir);
+    const result = runBuild(configPath);
+    assert.equal(result.exitCode, 0, result.human);
+    const w = result.envelope.generatorWarnings;
+    assert.deepEqual(w.filter((l) => /in the site folder's vault\.config\.json moves to/.test(l)), [], JSON.stringify(w));
+  });
+});

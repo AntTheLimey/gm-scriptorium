@@ -209,3 +209,40 @@ test('status and config list call a moved vault reachable, not unreachable (sett
     assert.doesNotMatch(list.all, /unreachable|settings-moved/);
   });
 });
+
+/** The site-relative addresses (href and src) a built page links to. */
+const linksIn = (html) => [...html.matchAll(/(?:href|src)="(\/[^"]*)"/g)].map((m) => m[1]);
+
+test('a pack siteUrl the yaml does not set reaches the 404 page as on the old layout (the address prefix)', () => {
+  withScratch((root) => {
+    const SITE_URL = 'https://example.org/longlease/';
+    // Old layout: a copy of the sample with siteUrl in its pack.
+    const legacyRoot = path.join(root, 'legacy');
+    fs.mkdirSync(legacyRoot);
+    const legacy = path.join(legacyRoot, 'vault');
+    fs.cpSync(SAMPLE, legacy, { recursive: true });
+    const legacyPack = path.join(legacy, '_meta', 'scriptorium', 'vault.config.json');
+    fs.writeFileSync(legacyPack, JSON.stringify({ ...JSON.parse(fs.readFileSync(legacyPack, 'utf8')), siteUrl: SITE_URL }, null, 2));
+    register(legacyRoot, legacy);
+    const legacyBuilt = run(legacyRoot, ['build']);
+    assert.equal(legacyBuilt.code, 0, legacyBuilt.all);
+
+    // Moved layout: the pack folded into the yaml, then siteUrl added to the pack after the move.
+    const movedRoot = path.join(root, 'moved');
+    fs.mkdirSync(movedRoot);
+    const { vaultPath } = moveVaultCopy(SAMPLE, movedRoot, { inVaultPack: true });
+    assert.doesNotMatch(fs.readFileSync(path.join(vaultPath, '_meta', 'vault-config.yaml'), 'utf8'), /^\s*url:/m, 'the yaml sets no player_site.url');
+    const movedPack = path.join(vaultPath, '_meta', 'scriptorium', 'vault.config.json');
+    fs.writeFileSync(movedPack, JSON.stringify({ ...JSON.parse(fs.readFileSync(movedPack, 'utf8')), siteUrl: SITE_URL }, null, 2));
+    register(movedRoot, vaultPath, null, 'out');
+    const movedBuilt = run(movedRoot, ['build']);
+    assert.equal(movedBuilt.code, 0, movedBuilt.all);
+
+    const legacy404 = linksIn(fs.readFileSync(path.join(legacyRoot, 'site', '404.html'), 'utf8'));
+    const moved404 = linksIn(fs.readFileSync(path.join(movedRoot, 'out', '404.html'), 'utf8'));
+    assert.ok(legacy404.includes('/longlease/css/style.css'), `the old layout's 404 page links the prefixed stylesheet: ${legacy404.join(' ')}`);
+    assert.ok(moved404.includes('/longlease/css/style.css'), `the moved layout's 404 page links the prefixed stylesheet: ${moved404.join(' ')}`);
+    assert.deepEqual(moved404.filter((l) => !l.startsWith('/longlease/')), [], 'every site-relative link on the moved 404 page carries the prefix');
+    assert.deepEqual(moved404, legacy404);
+  });
+});
