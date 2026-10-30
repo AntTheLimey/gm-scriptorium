@@ -26,20 +26,19 @@ const QUESTION = "Carry these settings into the vault's settings file? [y/N]: ";
 /**
  * @param {object} flags parsed CLI flags (`yes` skips the question)
  * @param {string[]} positional the words after the command; the first, if any, names the campaign
- * @param {{ input?: NodeJS.ReadableStream, output?: { write(s: string): unknown }, now?: () => number, env?: object }} [io]
+ * @param {{ input?: NodeJS.ReadableStream, output?: { write(s: string): unknown }, now?: () => number }} [io]
  * @returns {Promise<{ exitCode: 0 }>}
  * @throws {VaultUnreachableError} blocked, or a file changed since the plan (reason 'carry-blocked')
  * @throws {ScriptoriumError} closed input, a failed backup, or a pack that could not be rewritten
  */
-async function runCarryCommand(flags, positional = [], { input = process.stdin, output = process.stdout, now, env = process.env } = {}) {
-  void env;
+async function runCarryCommand(flags, positional = [], { input = process.stdin, output = process.stdout, now } = {}) {
   const say = (line) => output.write(`${line}\n`);
 
   const ctxInfo = resolveCampaignContext(flags, positional[0]);
   const { vaultPath, site } = resolveVaultSite(ctxInfo);
   const packConfigPath = path.resolve(site.siteConfigPath);
 
-  const planned = planCarry({ vaultPath, campaign: ctxInfo.campaign, packConfigPath });
+  const planned = planCarry({ vaultPath, packConfigPath });
   if (planned.state === 'blocked') {
     throw new VaultUnreachableError(planned.blockers.join('\n'), { path: vaultPath, campaign: ctxInfo.campaign, reason: 'carry-blocked' });
   }

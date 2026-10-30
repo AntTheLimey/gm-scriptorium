@@ -177,14 +177,13 @@ function namingThePack(text, internal) {
  * Plans the carry. Writes only a fresh scratch folder in the system temp folder (kept for
  * applyCarry; discardCarry removes it when the plan is not applied).
  *
- * @param {{ vaultPath: string, campaign: string|null, packConfigPath: string, siteConfig?: object, writePack?: boolean }} args
+ * @param {{ vaultPath: string, packConfigPath: string, siteConfig?: object, writePack?: boolean }} args
  *   `siteConfig`: the site settings to carry, used instead of reading `packConfigPath` (init passes the
  *   title it is about to set, with `writePack: false`, and there is no pack file to rewrite).
  *   `writePack` (default true): the pack file is rewritten afterwards, so it must be the pack in the vault.
  * @returns {{ state: 'nothing'|'ready'|'blocked', lines: string[], blockers: string[], plan: object|null, internal: object|null }}
  */
-function planCarry({ vaultPath, campaign, packConfigPath, siteConfig, writePack = true }) {
-  void campaign;
+function planCarry({ vaultPath, packConfigPath, siteConfig, writePack = true }) {
   if (pinned.settingsLayoutOf(vaultPath) !== 'new') {
     return blocked(['this vault keeps its settings in _meta/vault-config.md; there is nothing to carry']);
   }

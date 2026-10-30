@@ -103,7 +103,7 @@ async function inProcess(root, { yes = false, answer = 'y\n', onQuestion } = {})
   const flags = { config: path.join(root, 'config.toml') };
   if (yes) flags.yes = true;
   try {
-    const result = await runCarryCommand(flags, [], { input, output, now: () => Date.parse('2026-10-27T10:00:00Z'), env: {} });
+    const result = await runCarryCommand(flags, [], { input, output, now: () => Date.parse('2026-10-27T10:00:00Z') });
     return { code: result.exitCode, out };
   } catch (err) {
     if (err instanceof VaultUnreachableError) return { code: 3, out, err };
@@ -138,7 +138,7 @@ test('a leftover vault-config.md the pin removes as redundant is backed up first
     const md = path.join(vault, '_meta', 'vault-config.md');
     const MD = '---\ntype: meta\n---\n';
     fs.writeFileSync(md, MD);
-    const planned = planCarry({ vaultPath: vault, campaign: 't', packConfigPath: packOf(vault) });
+    const planned = planCarry({ vaultPath: vault, packConfigPath: packOf(vault) });
     discardCarry(planned);
     assert.ok(planned.plan.files.remove.some((f) => path.basename(f) === 'vault-config.md'), 'the pin plans to remove the leftover file');
     const res = run(root, ['carry', '--yes']);
@@ -228,7 +228,7 @@ test('a title and folder map the yaml already holds are not overwritten, and the
     pack.siteTitle = 'Pack Title';
     fs.writeFileSync(packOf(vault), JSON.stringify(pack, null, 2));
     // The plan, which the GM reads before answering, already says the vault's value is used.
-    const planned = planCarry({ vaultPath: vault, campaign: 't', packConfigPath: packOf(vault) });
+    const planned = planCarry({ vaultPath: vault, packConfigPath: packOf(vault) });
     discardCarry(planned);
     assert.ok(
       planned.lines.includes('siteTitle in the pack is "Pack Title", but the vault\'s settings set player_site.title to "Yaml Title"; the vault\'s value is used.'),
@@ -604,7 +604,7 @@ test('a pack that lives outside the vault is refused before anything is written'
 // --- the module, driven directly (the options Task 8's init uses) ---------------------------------
 
 function planFor(root, vault, extra = {}) {
-  return planCarry({ vaultPath: vault, campaign: 't', packConfigPath: packOf(vault), ...extra });
+  return planCarry({ vaultPath: vault, packConfigPath: packOf(vault), ...extra });
 }
 
 test('planCarry writes only its scratch folder and reports the pack as the site file', () => {

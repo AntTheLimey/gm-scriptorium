@@ -544,7 +544,6 @@ async function runInitCommand(
         entries = stripped.entries;
         planned = planCarry({
           vaultPath: vaultAbs,
-          campaign: name,
           packConfigPath: jsonPath,
           siteConfig: stripped.siteConfig,
           writePack: false,

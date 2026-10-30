@@ -104,7 +104,7 @@ class HandlerRefusal extends Error {
 function planAndApply(ctx, { dryRun, baseSha256 }) {
   refreshSettingsLayout(ctx);
   const basis = basisOf(ctx);
-  const planned = planCarry({ vaultPath: ctx.vaultPath, campaign: ctx.campaign, packConfigPath: path.resolve(ctx.siteConfigPath) });
+  const planned = planCarry({ vaultPath: ctx.vaultPath, packConfigPath: path.resolve(ctx.siteConfigPath) });
   try {
     if (planned.state === 'blocked') {
       throw new HandlerRefusal(409, { error: 'blocked', message: planned.blockers.join(' ') });
