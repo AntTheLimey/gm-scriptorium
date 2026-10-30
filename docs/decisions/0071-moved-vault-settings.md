@@ -88,7 +88,7 @@ On a moved vault, the panel's title save, tagline save and vault settings editor
 
 ## 9. The pin's move loads a child-process module
 
-`lib/settings/move.js` takes `spawnSync` from the child-process module when it loads, for a check that asks a site folder which publish tool it uses by running the pin's own command with `process.execPath`. In the packaged executable that would start GM-Scriptorium itself. The facade always hands the move its own answer (`pinCheck`, "no publish tool installed or pinned"), so nothing is ever started. The maintainer approved adding `lib/settings/move.js` to the expected set in `test/generator-module-graph.test.js`; ADR 0005's publish-v1.26.0 addendum records it, and `test/settings-carry-no-spawn.test.js` proves a real plan and apply start no program. Upstream AntTheLimey/gm-apprentice#535 asks for the module to be loaded lazily.
+`lib/settings/move.js` takes `spawnSync` from the child-process module when it loads, for a check that asks a site folder which publish tool it uses by running the pin's own command with `process.execPath`. In the packaged executable that would start GM-Scriptorium itself. The facade always hands the move its own answer (`pinCheck`, "no publish tool installed or pinned"), so nothing is ever started. Adding `lib/settings/move.js` to the expected set in `test/generator-module-graph.test.js` is a maintainer decision, flagged in the pull request that made it; ADR 0005's publish-v1.26.0 addendum records it, and `test/settings-carry-no-spawn.test.js` proves a real plan and apply start no program. Upstream AntTheLimey/gm-apprentice#535 asks for the module to be loaded lazily.
 
 ## 10. Rejected alternatives
 

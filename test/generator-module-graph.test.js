@@ -235,7 +235,8 @@ test('the generator files requiring child_process are exactly lib/image-optimize
   // must never run. The facade (src/generator/pinned.js, planSettingsCarry and applySettingsCarry)
   // always injects `deps.pinCheck`, so the spawn never runs; test/settings-carry-no-spawn.test.js
   // proves it. Upstream issue AntTheLimey/gm-apprentice#535 asks for a lazy require, so this
-  // exception can go once the pin has it. Owner-approved; see the same addendum.
+  // exception can go once the pin has it. Adding it is a maintainer decision, flagged in the pull request
+  // that made it; see the same addendum.
   const expected = ['lib/image-optimize.js', 'lib/run-command.js', 'lib/settings/move.js', 'lib/settings/steps.js'].sort();
   const actual = [];
   for (const f of graph.files) {

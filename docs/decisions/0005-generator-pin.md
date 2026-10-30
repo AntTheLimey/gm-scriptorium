@@ -1396,8 +1396,9 @@ patch would be process-wide and long-lived; this one covers two paths for one sy
   The facade (`planSettingsCarry` and `applySettingsCarry` in `src/generator/pinned.js`) always hands
   the move its own answer to that question, so the command is never started. The answer is "no
   publish tool installed or pinned", which is what the real command says for the scratch folder a
-  carry works in, and the move reads it as "nothing holds the move back". The maintainer approved
-  adding `lib/settings/move.js` to the module-graph test's expected set, which now names four files.
+  carry works in, and the move reads it as "nothing holds the move back". Adding
+  `lib/settings/move.js` to the module-graph test's expected set, which now names four files, is a
+  maintainer decision, flagged in the pull request that made it.
   `test/settings-carry-no-spawn.test.js` replaces every way of starting a program with a stub that
   throws, then plans and applies a real carry, and fails if the facade stops handing over the
   answer. Upstream issue AntTheLimey/gm-apprentice#535 asks for the file to load the module lazily;
