@@ -226,7 +226,8 @@ test('the generator files requiring child_process are exactly lib/image-optimize
   // when a caller passes `options.runSteps === true` to the generator's build (lib/build.js:258).
   // Scriptorium calls build({ configPath }) and never sets runSteps (grep of src/, bin/ and
   // scripts/ finds no use), so the file is reachable in the module graph but never executed.
-  // Owner-approved addition; see docs/decisions/0005-generator-pin.md (1.26.0 addendum).
+  // Adding it is a maintainer decision, flagged in the pull request that made it; see
+  // docs/decisions/0005-generator-pin.md (1.26.0 addendum).
   const expected = ['lib/image-optimize.js', 'lib/run-command.js', 'lib/settings/steps.js'].sort();
   const actual = [];
   for (const f of graph.files) {
