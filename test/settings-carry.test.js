@@ -13,6 +13,7 @@ const { runCarryCommand } = require('../src/cli/carry');
 const { planCarry, applyCarry, discardCarry } = require('../src/vault/settingscarry');
 const { writeCarriedPack } = require('../src/vault/carrypack');
 const packreplace = require('../src/vault/packreplace');
+const backups = require('../src/config/backups');
 const { VaultUnreachableError, ScriptoriumError } = require('../src/util/errors');
 
 /*
@@ -132,7 +133,7 @@ test('carry --yes folds the pack into the yaml, strips the pack, backs both up o
   });
 });
 
-test('a leftover vault-config.md the pin removes as redundant is backed up first, outside the vault, and the output says where', () => {
+test('a leftover vault-config.md the pin removes as redundant is backed up first, outside the vault, under its own name the panel neither lists nor prunes, and the output says where', () => {
   withScratch((root) => {
     const vault = setup(root);
     const md = path.join(vault, '_meta', 'vault-config.md');
@@ -144,12 +145,19 @@ test('a leftover vault-config.md the pin removes as redundant is backed up first
     const res = run(root, ['carry', '--yes']);
     assert.equal(res.code, 0, res.all);
     assert.equal(fs.existsSync(md), false, 'the pin removed it');
-    const mdBackups = backupsIn(root).filter((n) => /^vault-config-\d{8}T\d{9}Z-[0-9a-f]{6}\.md\.bak$/.test(n));
+    const mdBackups = backupsIn(root).filter((n) => n.endsWith('.md.bak'));
     assert.equal(mdBackups.length, 1, backupsIn(root).join(','));
+    assert.match(mdBackups[0], /^vault-config-leftover-\d{8}T\d{9}Z-[0-9a-f]{6}\.md\.bak$/);
     const backup = path.join(root, 'backups', 'campaign-t', mdBackups[0]);
     assert.equal(fs.readFileSync(backup, 'utf8'), MD);
     assert.deepEqual(insideVault(vault), []);
     assert.ok(res.out.includes(backup), res.out);
+    // The panel's restore list is for its own vault-config.md saves: the carry's copy is not one of them,
+    // and the panel's newest-20 prune must never delete it.
+    const listed = backups.listBackups({ machineDir: root, campaign: 't', vaultPath: vault });
+    assert.deepEqual(listed.ok && listed.items, []);
+    backups.pruneBackups({ machineDir: root, campaign: 't', keep: 0 });
+    assert.equal(fs.readFileSync(backup, 'utf8'), MD);
   });
 });
 

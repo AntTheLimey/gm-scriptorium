@@ -364,7 +364,8 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     const mdPath = path.join(vaultPath, '_meta', 'vault-config.md');
     const removes = ((planned.plan.files && planned.plan.files.remove) || []).map((f) => path.resolve(f));
     if (removes.includes(path.resolve(mdPath))) {
-      done.md = backups.writeBackup({ ...common, bytes: fs.readFileSync(mdPath), file: 'vault-config.md' }).path;
+      // Labelled, so the panel's restore list and its newest-20 prune leave this copy alone.
+      done.md = backups.writeBackup({ ...common, bytes: fs.readFileSync(mdPath), file: 'vault-config.md', label: 'leftover' }).path;
     }
 
     // 2. The pin's own apply: writes the yaml and the scratch copy of the pack.
